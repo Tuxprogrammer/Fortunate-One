@@ -3,19 +3,17 @@
 	"modList": [{
 		"modid": "${modId}",
 		"name": "${modName}",
-		"description": "An example mod for Minecraft 1.7.10 with Forge focused on a stable setup.",
-		"version": "${modVersion}",
-		"mcversion": "${minecraftVersion}",
-		"url": "https://github.com/SinTh0r4s/MyMod",
-		"updateUrl": "",
-		"authorList": ["SinTho0r4s"],
-		"credits": "",
-		"logoFile": "",
-		"screenshots": [],
-		"parent": "",
-		"requiredMods": [],
-		"dependencies": [],
-		"dependants": [],
-		"useDependencyInformation": false
-	}]
-}
+                "description": "Removes the Fortune 3 cap on GT5U big ore drops (GTOreAdapter, BWOreAdapter, GTPPOreAdapter) when FortuneItem mode is active. Configurable per-adapter and for placed ores.",
+                "version": "${modVersion}",
+                "mcversion": "${minecraftVersion}",
+                "url": "https://github.com/Tuxprogrammer/Fortunate-One",
+                "updateUrl": "",
+                "authorList": ["Tuxprogrammer"],
+                "credits": "GT5-Unofficial team for the GT ore drop system",
+                "logoFile": "",
+                "screenshots": [],
+                "parent": "",
+                "requiredMods": ["gregtech"],
+                "dependencies": ["gregtech"],
+                "dependants": [],
+                "useDependencyInformation": true
