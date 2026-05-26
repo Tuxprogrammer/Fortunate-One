@@ -15,7 +15,7 @@ import cpw.mods.fml.common.event.FMLServerStartingEvent;
     version = Tags.VERSION,
     name = FortunateOneMod.MOD_NAME,
     acceptedMinecraftVersions = "[1.7.10]",
-    dependencies = "required-after:gregtech")
+    dependencies = "after:gregtech")
 public class FortunateOneMod {
 
     public static final String MOD_ID = "fortunateone";

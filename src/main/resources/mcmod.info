@@ -16,4 +16,5 @@
                 "requiredMods": ["gregtech"],
                 "dependencies": ["gregtech"],
                 "dependants": [],
-                "useDependencyInformation": true
+                "useDependencyInformation": true	}]
+}
