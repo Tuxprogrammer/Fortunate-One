@@ -13,8 +13,8 @@
                 "logoFile": "",
                 "screenshots": [],
                 "parent": "",
-                "requiredMods": ["gregtech"],
-                "dependencies": ["gregtech"],
+                "requiredMods": [],
+                "dependencies": [],
                 "dependants": [],
                 "useDependencyInformation": true	}]
 }
