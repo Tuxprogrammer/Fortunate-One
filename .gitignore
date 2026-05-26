@@ -28,6 +28,7 @@ whitelist.json
 *.iws
 *.bat
 *.DS_Store
+/release-output/
 !gradlew.bat
 .factorypath
 addon.local.gradle
