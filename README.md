@@ -5,34 +5,74 @@
 
 A Minecraft 1.7.10 Forge addon for GT5-Unofficial that removes the Fortune III cap on big ore drops. When **FortuneItem** drop mode is active, ore adapters will scale drops beyond fortune level 3 instead of capping at it.
 
-## Installation
+## User Documentation
 
-1. Drop `fortunateone-*.jar` into your `mods/` folder.
-2. Requires [GT5-Unofficial](https://github.com/GTNewHorizons/GT5-Unofficial) at runtime.
-3. UniMixins is required and is typically already present in GT New Horizons packs.
-
-## Configuration
-
-Edit `config/fortunateone.cfg` after the first launch:
-
-| Option | Default | Description |
-|---|---|---|
-| `applyToGT` | `true` | Remove the cap for GT ore drops (`GTOreAdapter`) |
-| `applyToBW` | `true` | Remove the cap for BartWorks ore drops (`BWOreAdapter`) |
-| `applyToGTPP` | `true` | Remove the cap for GT++ ore drops (`GTPPOreAdapter`) |
-| `allowPlacedOreFortune` | `false` | Also apply unlimited fortune to player-placed ores |
+- [Installing](docs/installing.md) — requirements, download, and step-by-step setup
+- [Configuring](docs/configuring.md) — all config options with defaults and descriptions
 
 ## How It Works
 
-GT5U limits fortune-based big ore drops to a maximum of fortune level 3 regardless of the actual enchantment level. This mod injects into the three ore adapter classes via SpongeMixin and replaces the capped drop formula with an uncapped one when FortuneItem mode is selected.
+GT5U hard-caps fortune-based big ore drops at level 3 inside `GTOreAdapter`, `BWOreAdapter`, and `GTPPOreAdapter`. This mod injects into those three classes via SpongeMixin and replaces the capped drop formula with an uncapped one when FortuneItem mode is active.
 
-## Building from Source
+The uncapped formula is in `FortuneDropCalculator.java` and has no Minecraft dependencies, making it straightforward to unit test. The mixin classes delegate to it directly.
 
-```bash
-./gradlew jar
+## Project Structure
+
+```
+src/main/java/.../fortunateone/
+  FortunateOneMod.java         @Mod entry point, registers proxy
+  FortunateOneConfig.java      Forge Configuration wrapper (generates config/fortunateone.cfg)
+  CommonProxy.java             Loads config on FMLPreInitializationEvent
+  FortuneDropCalculator.java   Pure-Java drop formula (no MC deps, fully unit tested)
+  mixins/
+    MixinGTOreAdapter.java     Injects into gregtech.common.ores.GTOreAdapter
+    MixinBWOreAdapter.java     Injects into gregtech.common.ores.BWOreAdapter
+    MixinGTPPOreAdapter.java   Injects into gregtech.common.ores.GTPPOreAdapter
+
+src/test/java/.../fortunateone/
+  FortuneFormulaTest.java      JUnit 5 tests for FortuneDropCalculator
 ```
 
-Output is in `build/libs/`.
+## Building
+
+Requires JDK 8 or 17+. The Gradle wrapper is included; no local Gradle installation needed.
+
+```bash
+# Build the mod jar
+./gradlew jar
+
+# Run unit tests
+./gradlew test
+
+# Build + test (what CI runs)
+./gradlew build
+
+# Generate a decompiled development workspace (for IDE use)
+./gradlew setupDecompWorkspace
+```
+
+Output jars are written to `build/libs/`.
+
+## Dependencies
+
+Runtime dependency declared in `dependencies.gradle`:
+
+```groovy
+compileOnly(rfg.deobf("com.github.GTNewHorizons:GT5-Unofficial:5.09.52.551:dev"))
+```
+
+GT5U is `compileOnly` — it must be present in the player's `mods/` folder at runtime but is not bundled into the jar.
+
+## CI / Releasing
+
+Two GitHub Actions workflows handle CI:
+
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| `build-and-test.yml` | push to `main`, `workflow_dispatch` | Compile, test, run server smoke test, upload artifact |
+| `release-tags.yml` | git tag push, `workflow_dispatch` | Build release jars and publish a GitHub Release |
+
+To cut a release: tag the commit (`git tag v1.x.x && git push origin v1.x.x`), then trigger `release-tags.yml` via `workflow_dispatch` if it does not auto-fire.
 
 ## Credits
 
