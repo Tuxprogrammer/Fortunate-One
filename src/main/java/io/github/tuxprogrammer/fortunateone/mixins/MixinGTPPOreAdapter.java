@@ -35,7 +35,7 @@ public class MixinGTPPOreAdapter {
         CallbackInfoReturnable<ArrayList<ItemStack>> cir) {
 
         // --- addon gate checks ---
-        if (!FortunateOneConfig.enableUnlimitedFortuneMode || !FortunateOneConfig.applyToGTPP) return;
+        if (!FortunateOneConfig.gtPlusPlusUnlimitedFortune) return;
 
         // GT++ adapter only handles gtPlusPlus Material
         if (!(info2.material instanceof Material)) return;

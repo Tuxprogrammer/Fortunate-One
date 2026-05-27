@@ -31,8 +31,7 @@ import io.github.tuxprogrammer.fortunateone.FortuneDropCalculator;
  * <p>
  * Only fires when:
  * <ul>
- * <li>{@link FortunateOneConfig#enableUnlimitedFortuneMode} is {@code true}</li>
- * <li>{@link FortunateOneConfig#applyToGT} is {@code true}</li>
+ * <li>{@link FortunateOneConfig#gregTechUnlimitedFortune} is {@code true}</li>
  * <li>The ore is a big ore (not small)</li>
  * <li>Silk-touch is not active</li>
  * <li>The active GT drop mode is {@code FortuneItem}</li>
@@ -48,7 +47,7 @@ public class MixinGTOreAdapter {
         CallbackInfoReturnable<ArrayList<ItemStack>> cir) {
 
         // --- addon gate checks ---
-        if (!FortunateOneConfig.enableUnlimitedFortuneMode || !FortunateOneConfig.applyToGT) return;
+        if (!FortunateOneConfig.gregTechUnlimitedFortune) return;
 
         // GT adapter only handles Materials
         if (!(info2.material instanceof Materials)) return;

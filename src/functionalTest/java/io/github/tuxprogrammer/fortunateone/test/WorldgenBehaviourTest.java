@@ -148,27 +148,20 @@ class WorldgenBehaviourTest {
      */
     @Test
     void getDimensionOverrideReturnsNullWhenNoOverridesConfigured() {
-        String[] savedOverrides = FortunateOneConfig.dimensionOverrides;
+        java.io.File tmp;
         try {
-            FortunateOneConfig.dimensionOverrides = new String[] {};
-            // Rebuild the map by writing and reading a blank config
-            // We use a temp file to avoid touching the live dev config.
-            java.io.File tmp;
-            try {
-                tmp = java.io.File.createTempFile("fortunateone-test", ".cfg");
-                tmp.deleteOnExit();
-            } catch (java.io.IOException e) {
-                throw new RuntimeException("Could not create temp config file", e);
-            }
-            FortunateOneConfig.synchronizeConfiguration(tmp);
-            assertNull(
-                FortunateOneConfig.getDimensionOverride("Overworld"),
-                "getDimensionOverride must return null when no overrides are configured");
-            assertNull(
-                FortunateOneConfig.getDimensionOverride("Nether"),
-                "getDimensionOverride must return null for Nether when no overrides are configured");
-        } finally {
-            FortunateOneConfig.dimensionOverrides = savedOverrides;
+            tmp = java.io.File.createTempFile("fortunateone-test", ".cfg");
+            tmp.deleteOnExit();
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Could not create temp config file", e);
         }
+        // Point dimension config at an empty temp file — no sections, no properties.
+        FortunateOneConfig.initDimensionConfig(tmp);
+        assertNull(
+            FortunateOneConfig.getDimensionOverride("Overworld"),
+            "getDimensionOverride must return null when no overrides are configured");
+        assertNull(
+            FortunateOneConfig.getDimensionOverride("Nether"),
+            "getDimensionOverride must return null for Nether when no overrides are configured");
     }
 }

@@ -34,7 +34,7 @@ public class MixinBWOreAdapter {
         CallbackInfoReturnable<ArrayList<ItemStack>> cir) {
 
         // --- addon gate checks ---
-        if (!FortunateOneConfig.enableUnlimitedFortuneMode || !FortunateOneConfig.applyToBW) return;
+        if (!FortunateOneConfig.bartWorksUnlimitedFortune) return;
 
         // BW adapter only handles Werkstoff materials
         if (!(info2.material instanceof Werkstoff)) return;

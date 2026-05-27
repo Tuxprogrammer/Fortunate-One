@@ -69,6 +69,7 @@ public abstract class MixinWorldgenGTOreLayer {
     private void fortuneone$initVeinState(World world, Random rng, String biome, int chunkX, int chunkZ, int seedX,
         int seedZ, IChunkProvider chunkGenerator, IChunkProvider chunkProvider, CallbackInfoReturnable<Integer> cir) {
         String dimName = DimensionDef.getDimensionName(world);
+        FortunateOneConfig.registerDimension(dimName);
         DimensionOverride eff = FortunateOneConfig.getDimensionOverride(dimName);
         if (eff != null) {
             VeinGenState.CURRENT.set(new VeinGenState(eff, rng));

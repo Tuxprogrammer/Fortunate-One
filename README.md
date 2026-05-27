@@ -14,9 +14,9 @@ A Minecraft 1.7.10 Forge addon for GT5-Unofficial that removes the Fortune III c
 
 ## How It Works
 
-**Fortune uncapping:** GT5U hard-caps fortune-based big ore drops at level 3 inside `GTOreAdapter`, `BWOreAdapter`, and `GTPPOreAdapter`. This mod injects into those three classes via SpongeMixin and replaces the capped drop formula with an uncapped one when FortuneItem mode is active. The uncapped formula is in `FortuneDropCalculator.java` and has no Minecraft dependencies, making it straightforward to unit test.
+**Fortune uncapping:** GT5U hard-caps fortune-based big ore drops at level 3 inside `GTOreAdapter`, `BWOreAdapter`, and `GTPPOreAdapter`. This mod injects into those three classes via SpongeMixin and replaces the capped drop formula with an uncapped one when FortuneItem mode is active. Each adapter can be toggled independently via `gregTechUnlimitedFortune`, `bartWorksUnlimitedFortune`, and `gtPlusPlusUnlimitedFortune`. The uncapped formula is in `FortuneDropCalculator.java` and has no Minecraft dependencies, making it straightforward to unit test.
 
-**Dimension overrides:** Per-dimension `dimensionOverrides` entries let you override the Y range and layer structure of every GT ore vein for a specific dimension (or globally with `*`). Layer counts above 9 are fully supported — the mod injects after GT's fixed 9 `generateLayer` calls and fires additional calls as needed. The in-game config GUI (accessible from the **Mods** screen) lets you edit overrides without restarting; changes apply to newly generated chunks.
+**Dimension overrides:** Per-dimension sub-sections in `config/fortunateone.cfg` let you override the Y range and layer structure of every GT ore vein for a specific dimension. A global default can be set in the top-level `dimensionOverrides` category and applies to every dimension without its own sub-section. Sub-sections are added automatically the first time the mod generates ore veins in each dimension. Layer counts above 9 are fully supported — the mod injects after GT's fixed 9 `generateLayer` calls and fires additional calls as needed. The in-game config GUI (accessible from the **Mods** screen) lets you edit the main options without restarting; dimension sub-sections are edited directly in the file.
 
 ## Project Structure
 

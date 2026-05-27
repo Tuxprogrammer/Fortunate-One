@@ -7,10 +7,9 @@ All options live in the `general` category.
 
 | Key | Default | Description |
 |---|---|---|
-| `enableUnlimitedFortuneMode` | `true` | Master toggle. When `false`, all other options are ignored and the mod does nothing. |
-| `applyToGT` | `true` | Remove the Fortune 3 cap for GT5-Unofficial ore drops (`GTOreAdapter`). |
-| `applyToBW` | `true` | Remove the Fortune 3 cap for BartWorks ore drops (`BWOreAdapter`). |
-| `applyToGTPP` | `true` | Remove the Fortune 3 cap for GT++ ore drops (`GTPPOreAdapter`). |
+| `gregTechUnlimitedFortune` | `true` | Remove the Fortune 3 cap for GT5-Unofficial ore drops (`GTOreAdapter`). |
+| `bartWorksUnlimitedFortune` | `true` | Remove the Fortune 3 cap for BartWorks ore drops (`BWOreAdapter`). |
+| `gtPlusPlusUnlimitedFortune` | `true` | Remove the Fortune 3 cap for GT++ ore drops (`GTPPOreAdapter`). |
 | `affectBigOresOnly` | `true` | Only big (mixed) ores are affected. Small ores always use vanilla GT behavior. It is strongly recommended to leave this `true`. |
 | `allowPlacedOreFortune` | `true` | GT normally treats player-placed ores as non-natural and zeroes the fortune bonus entirely. Set to `true` to bypass that and allow fortune on placed ores. |
 
@@ -19,21 +18,54 @@ All options live in the `general` category.
 | Key | Default | Description |
 |---|---|---|
 | `equalizeOreVeinWeights` | `true` | Equalize spawn weight of all GT ore veins (GT5U, BartWorks, GT++) so every vein type has an equal chance of being selected. |
-| `dimensionOverrides` | *(empty)* | Per-dimension overrides for ore vein Y range and layer structure (see below). |
 
-### `dimensionOverrides` Format
+### `dimensionOverrides` — per-dimension worldgen config
 
-Each entry is a single string with six colon-separated fields:
+Dimension overrides are configured in a dedicated section of `config/fortunateone.cfg`.
+
+**Auto-discovery:** The first time the mod generates ore veins in a dimension, it automatically adds a sub-section for that dimension with all fields set to `-1` (no override). You can then edit the values and restart to apply them.
+
+**Config structure:**
 
 ```
-DimensionName:minY:maxY:primaryLayers:secondaryLayers:betweenLayers
+dimensionOverrides {
+    # --- Global default (optional) ---
+    # Properties written directly here apply to every dimension that does not have
+    # its own sub-section. Add these manually if you want a universal baseline.
+    # Example: lower Y cap for all dimensions:
+    # I:minY=10
+    # I:maxY=60
+    # I:primaryLayers=-1
+    # I:secondaryLayers=-1
+    # I:betweenLayers=-1
+
+    # --- Per-dimension sub-sections (added automatically on first encounter) ---
+    Overworld {
+        I:betweenLayers=-1
+        I:maxY=-1
+        I:minY=-1
+        I:primaryLayers=-1
+        I:secondaryLayers=-1
+    }
+
+    Nether {
+        I:betweenLayers=2
+        I:maxY=50
+        I:minY=20
+        I:primaryLayers=3
+        I:secondaryLayers=3
+    }
+}
 ```
+
+**Fields** (apply to both the global default and per-dimension sections):
 
 | Field | Meaning |
 |---|---|
-| `DimensionName` | Dimension name as returned by `world.provider.getDimensionName()` (case-sensitive). Use `*` for a global default that applies to every dimension not matched by an exact entry. |
-| `minY` / `maxY` | Override the Y range in which veins can spawn. Use `-1` for both to leave the vein's configured range unchanged. |
-| `primaryLayers` / `secondaryLayers` / `betweenLayers` | Override the number of ore layers of each type. Must all be set together (none may be `-1`) or all left at `-1` (partial override not supported). Any total layer count is supported. |
+| `minY` / `maxY` | Override the Y range in which veins can spawn. Set both, or leave both at `-1` to keep the vein's configured range. |
+| `primaryLayers` / `secondaryLayers` / `betweenLayers` | Override the layer counts. Must all be set together (none may be `-1`) or all left at `-1` (partial override not supported). Any total layer count is supported — not capped at 9. |
+
+**Priority:** A per-dimension sub-section always takes precedence over the global default, even when all fields are `-1`. This lets you explicitly opt a dimension out of the global default.
 
 **Dimension names** (common examples):
 
@@ -45,36 +77,20 @@ DimensionName:minY:maxY:primaryLayers:secondaryLayers:betweenLayers
 | Galacticraft Moon | `Moon` |
 | Galacticraft Mars | `Mars` |
 
-**Examples:**
-
-```
-# Lower Y cap for all dimensions, keep default layer structure:
-*:10:60:-1:-1:-1
-
-# Nether: shallow range, custom layer counts:
-Nether:20:50:3:3:2
-
-# Moon: deep range only, default layers:
-Moon:15:80:-1:-1:-1
-
-# Overworld custom layers (no height change):
-Overworld:-1:-1:4:3:2
-```
-
 > **Note:** Layer override changes the internal vein structure from the vanilla GT5U pattern
 > (`S,S,S,S+B,B,P+B,P+B,P,P`) to pure sequential blocks (all S, then all B, then all P).
 > The small ore placer always runs afterwards regardless of layer settings.
 
 ## Notes
 
-- The config can be edited in-game via the **Mods** screen → select *Fortunate One* → **Config**. Changes saved through the GUI apply to newly generated chunks without restarting.
+- The config can be edited in-game via the **Mods** screen → select *Fortunate One* → **Config**. Changes saved through the GUI apply immediately to newly generated chunks without restarting. Dimension override sub-sections are not shown in the GUI but can be edited directly in the file.
 - Changes made directly to `config/fortunateone.cfg` take effect on the next game launch (or server restart).
 - The `affectBigOresOnly` option cannot be meaningfully set to `false` — small ore processing is not intercepted by this mod regardless of the setting.
-- If `enableUnlimitedFortuneMode` is `false`, the fortune portion of the mod is completely inactive; fortune behaviour reverts to vanilla GT5U (capped at level 3). Worldgen options remain active independently.
+- To disable the fortune uncap entirely, set all three `*UnlimitedFortune` flags to `false`. Worldgen options remain active independently.
 
 ## Default Config File
 
-This is what `config/fortunateone.cfg` looks like with all default values:
+This is what `config/fortunateone.cfg` looks like with all default values (dimension sub-sections are added automatically as dimensions are visited):
 
 ```
 # Configuration file
@@ -83,26 +99,25 @@ general {
     # Only affect big ores. Small ores always use vanilla GT behavior. (Recommended: true) [default: true]
     B:affectBigOresOnly=true
 
-    # Allow placed (non-natural) big ores to receive Fortune when unlimited mode is enabled. GT normally zeroes fortune for placed ores; this bypasses that. [default: true]
+    # Allow placed (non-natural) big ores to receive Fortune. GT normally zeroes fortune for placed ores; this bypasses that. [default: true]
     B:allowPlacedOreFortune=true
 
     # Apply unlimited Fortune to BartWorks big ore drops. [default: true]
-    B:applyToBW=true
-
-    # Apply unlimited Fortune to gregtech (GT5U) big ore drops. [default: true]
-    B:applyToGT=true
-
-    # Apply unlimited Fortune to GT++ big ore drops. [default: true]
-    B:applyToGTPP=true
-
-    # Per-dimension overrides for ore vein Y range and layer structure. [default: ]
-    S:dimensionOverrides <
-     >
-
-    # Remove the Fortune 3 cap on big ore drops when GT drop mode is FortuneItem. [default: true]
-    B:enableUnlimitedFortuneMode=true
+    B:bartWorksUnlimitedFortune=true
 
     # Equalize the spawn weight of all GT ore veins so every vein type has an equal chance of being selected per worldgen attempt. [default: true]
     B:equalizeOreVeinWeights=true
+
+    # Apply unlimited Fortune to GregTech (GT5U) big ore drops. [default: true]
+    B:gregTechUnlimitedFortune=true
+
+    # Apply unlimited Fortune to GT++ big ore drops. [default: true]
+    B:gtPlusPlusUnlimitedFortune=true
+}
+
+dimensionOverrides {
+    # (Sub-sections are added here automatically when the mod generates ore veins in a new dimension.)
+    # To apply a universal default to all dimensions, add minY/maxY/primaryLayers/secondaryLayers/betweenLayers
+    # properties directly in this section (not inside a sub-section).
 }
 ```

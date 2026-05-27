@@ -19,16 +19,14 @@ public class CommonProxy {
         } catch (Exception e) {
             throw new RuntimeException("Failed to register Fortunate One config", e);
         }
-        FortunateOneConfig.rebuildDimensionOverrideMap();
+        FortunateOneConfig.initDimensionConfig(event.getSuggestedConfigurationFile());
         MinecraftForge.EVENT_BUS.register(this);
         FortunateOneMod.LOG.info("[Fortunate One] Version " + Tags.VERSION + " initializing.");
-        FortunateOneMod.LOG
-            .info("[Fortunate One] Unlimited Fortune mode: {}", FortunateOneConfig.enableUnlimitedFortuneMode);
         FortunateOneMod.LOG.info(
-            "[Fortunate One] Apply to GT={}, BW={}, GTPP={}",
-            FortunateOneConfig.applyToGT,
-            FortunateOneConfig.applyToBW,
-            FortunateOneConfig.applyToGTPP);
+            "[Fortunate One] Unlimited fortune — GT={}, BW={}, GTPP={}",
+            FortunateOneConfig.gregTechUnlimitedFortune,
+            FortunateOneConfig.bartWorksUnlimitedFortune,
+            FortunateOneConfig.gtPlusPlusUnlimitedFortune);
         FortunateOneMod.LOG
             .info("[Fortunate One] Allow placed ore fortune: {}", FortunateOneConfig.allowPlacedOreFortune);
     }
