@@ -8,6 +8,9 @@ on:
     branches: [ master, main ]
     tags: [ '*' ]
 
+permissions:
+  contents: write
+
 jobs:
   zip-and-release-packages:
     runs-on: ubuntu-latest
