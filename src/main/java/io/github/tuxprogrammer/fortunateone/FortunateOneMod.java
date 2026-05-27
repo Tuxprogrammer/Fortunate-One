@@ -15,6 +15,7 @@ import cpw.mods.fml.common.event.FMLServerStartingEvent;
     version = Tags.VERSION,
     name = FortunateOneMod.MOD_NAME,
     acceptedMinecraftVersions = "[1.7.10]",
+    guiFactory = "io.github.tuxprogrammer.fortunateone.client.FortunateOneGuiFactory",
     dependencies = "after:gregtech")
 public class FortunateOneMod {
 

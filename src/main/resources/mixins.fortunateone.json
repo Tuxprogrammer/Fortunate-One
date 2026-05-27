@@ -8,7 +8,9 @@
   "mixins": [
     "MixinGTOreAdapter",
     "MixinBWOreAdapter",
-    "MixinGTPPOreAdapter"
+    "MixinGTPPOreAdapter",
+    "MixinLayerGenerator",
+    "MixinWorldgenGTOreLayer"
   ],
   "client": [],
   "server": []

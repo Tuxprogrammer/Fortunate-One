@@ -1,0 +1,37 @@
+name: Mixin package purity
+
+# Prevent the SpongeMixin IllegalClassLoadError crash:
+# Every .java file inside the mixin package (*/mixins/*.java) must carry an
+# @Mixin annotation. Any class without one will cause SpongeMixin to throw
+# IllegalClassLoadError at runtime the first time the JVM tries to load it.
+# See: https://github.com/tuxprogrammer/fortunate-one/issues/ (VeinGenState crash)
+
+on:
+  pull_request:
+    branches: [master, main]
+  push:
+    branches: [master, main]
+
+jobs:
+  check-mixin-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify no non-mixin classes in mixin package
+        shell: bash
+        run: |
+          exitcode=0
+          while IFS= read -r -d '' f; do
+            if ! grep -q '@Mixin' "$f"; then
+              echo "ERROR: $f is in the mixin package but lacks an @Mixin annotation."
+              echo "       Non-mixin classes in the mixin package cause SpongeMixin to"
+              echo "       throw IllegalClassLoadError at runtime. Move the class to"
+              echo "       src/main/java/io/github/tuxprogrammer/fortunateone/ instead."
+              exitcode=1
+            fi
+          done < <(find src/main/java -path '*/mixins/*.java' -print0)
+          if [ $exitcode -eq 0 ]; then
+            echo "OK: all files in the mixin package have @Mixin annotations."
+          fi
+          exit $exitcode

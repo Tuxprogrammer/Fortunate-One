@@ -34,11 +34,26 @@
  * For more details, see https://docs.gradle.org/8.0.1/userguide/java_library_plugin.html#sec:java_library_configurations_graph
  */
 dependencies {
-    // GT5-Unofficial: required for mixin targets. BartWorks and GT++ are bundled inside the GT5U jar.
-    compileOnly(rfg.deobf("com.github.GTNewHorizons:GT5-Unofficial:5.09.52.551:dev"))
+    // GT5-Unofficial: required for mixin targets at compile time and at runtime for runServer/functionalTests.
+    // BartWorks and GT++ are bundled inside the GT5U jar.
+    // devOnlyNonPublishable = compileOnly + runtimeOnlyNonPublishable; not published as a Maven dependency.
+    devOnlyNonPublishable(rfg.deobf("com.github.GTNewHorizons:GT5-Unofficial:5.09.52.551:dev"))
 
-    // Test dependencies
+    // Test dependencies (unit tests)
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+// The functionalTest source set is created in build.gradle.kts after the convention plugin runs,
+// so its configurations (functionalTestImplementation etc.) are only available post-evaluation.
+afterEvaluate {
+    dependencies {
+        functionalTestImplementation(platform("org.junit:junit-bom:5.11.4"))
+        functionalTestImplementation("org.junit.jupiter:junit-jupiter")
+        functionalTestRuntimeOnly("org.junit.platform:junit-platform-launcher")
+        functionalTestImplementation("org.junit.platform:junit-platform-engine")
+        functionalTestImplementation("org.junit.platform:junit-platform-launcher")
+        functionalTestImplementation("org.junit.platform:junit-platform-reporting")
+    }
 }

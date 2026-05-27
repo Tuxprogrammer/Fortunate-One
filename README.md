@@ -3,7 +3,9 @@
 [![](https://jitpack.io/v/Tuxprogrammer/Fortunate-One.svg)](https://jitpack.io/#Tuxprogrammer/Fortunate-One)
 [![](https://github.com/Tuxprogrammer/Fortunate-One/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/Tuxprogrammer/Fortunate-One/actions/workflows/build-and-test.yml)
 
-A Minecraft 1.7.10 Forge addon for GT5-Unofficial that removes the Fortune III cap on big ore drops. When **FortuneItem** drop mode is active, ore adapters will scale drops beyond fortune level 3 instead of capping at it.
+A Minecraft 1.7.10 Forge addon for GT5-Unofficial that removes the Fortune III cap on big ore drops and adds configurable per-dimension ore vein worldgen overrides. When **FortuneItem** drop mode is active, ore adapters will scale drops beyond fortune level 3 instead of capping at it.
+
+![Dimension override demo — a 25-layer ore vein generated in-world](docs/dimension-override-demo.png)
 
 ## User Documentation
 
@@ -12,25 +14,35 @@ A Minecraft 1.7.10 Forge addon for GT5-Unofficial that removes the Fortune III c
 
 ## How It Works
 
-GT5U hard-caps fortune-based big ore drops at level 3 inside `GTOreAdapter`, `BWOreAdapter`, and `GTPPOreAdapter`. This mod injects into those three classes via SpongeMixin and replaces the capped drop formula with an uncapped one when FortuneItem mode is active.
+**Fortune uncapping:** GT5U hard-caps fortune-based big ore drops at level 3 inside `GTOreAdapter`, `BWOreAdapter`, and `GTPPOreAdapter`. This mod injects into those three classes via SpongeMixin and replaces the capped drop formula with an uncapped one when FortuneItem mode is active. The uncapped formula is in `FortuneDropCalculator.java` and has no Minecraft dependencies, making it straightforward to unit test.
 
-The uncapped formula is in `FortuneDropCalculator.java` and has no Minecraft dependencies, making it straightforward to unit test. The mixin classes delegate to it directly.
+**Dimension overrides:** Per-dimension `dimensionOverrides` entries let you override the Y range and layer structure of every GT ore vein for a specific dimension (or globally with `*`). Layer counts above 9 are fully supported — the mod injects after GT's fixed 9 `generateLayer` calls and fires additional calls as needed. The in-game config GUI (accessible from the **Mods** screen) lets you edit overrides without restarting; changes apply to newly generated chunks.
 
 ## Project Structure
 
 ```
 src/main/java/.../fortunateone/
-  FortunateOneMod.java         @Mod entry point, registers proxy
-  FortunateOneConfig.java      Forge Configuration wrapper (generates config/fortunateone.cfg)
-  CommonProxy.java             Loads config on FMLPreInitializationEvent
-  FortuneDropCalculator.java   Pure-Java drop formula (no MC deps, fully unit tested)
+  FortunateOneMod.java           @Mod entry point; registers proxy; declares guiFactory
+  FortunateOneConfig.java        gtnhlib @Config holder (generates config/fortunateone.cfg)
+  CommonProxy.java               Registers config, fires rebuildDimensionOverrideMap on ConfigChangedEvent
+  FortuneDropCalculator.java     Pure-Java drop formula (no MC deps, fully unit tested)
+  ILayerGeneratorAccess.java     Mixin accessor interface for WorldgenGTOreLayer$LayerGenerator
+  VeinGenState.java              ThreadLocal carrier for per-vein override state between mixins
+  client/
+    FortunateOneGuiFactory.java  Forge guiFactory — entry point for the in-game config screen
+    FortunateOneGuiConfig.java   gtnhlib SimpleGuiConfig screen shown from the Mods list
   mixins/
-    MixinGTOreAdapter.java     Injects into gregtech.common.ores.GTOreAdapter
-    MixinBWOreAdapter.java     Injects into gregtech.common.ores.BWOreAdapter
-    MixinGTPPOreAdapter.java   Injects into gregtech.common.ores.GTPPOreAdapter
+    MixinGTOreAdapter.java       Injects into gregtech.common.ores.GTOreAdapter
+    MixinBWOreAdapter.java       Injects into gregtech.common.ores.BWOreAdapter
+    MixinGTPPOreAdapter.java     Injects into gregtech.common.ores.GTPPOreAdapter
+    MixinWorldgenGTOreLayer.java Injects into WorldgenGTOreLayer — resolves DimensionOverride, fires extra layer calls
+    MixinLayerGenerator.java     Injects into WorldgenGTOreLayer$LayerGenerator — applies Y and layer overrides
 
 src/test/java/.../fortunateone/
-  FortuneFormulaTest.java      JUnit 5 tests for FortuneDropCalculator
+  FortuneFormulaTest.java        JUnit 5 tests for FortuneDropCalculator
+
+src/functionalTest/java/.../fortunateone/
+  FunctionalTest.java            Minecraft server integration tests
 ```
 
 ## Building
@@ -44,7 +56,10 @@ Requires JDK 8 or 17+. The Gradle wrapper is included; no local Gradle installat
 # Run unit tests
 ./gradlew test
 
-# Build + test (what CI runs)
+# Run Minecraft server integration tests
+./gradlew functionalTestJar
+
+# Build + all tests (what CI runs)
 ./gradlew build
 
 # Generate a decompiled development workspace (for IDE use)
