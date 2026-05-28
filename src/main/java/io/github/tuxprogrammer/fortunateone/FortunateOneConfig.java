@@ -1,7 +1,9 @@
 package io.github.tuxprogrammer.fortunateone;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import net.minecraftforge.common.config.ConfigCategory;
@@ -48,6 +50,66 @@ public class FortunateOneConfig {
 
     @Config.Ignore
     private static final String CAT_DIM_OVERRIDES = "dimensionOverrides";
+
+    /**
+     * All GTNH dimensions known to spawn GT ore veins, in rough progression order.
+     * Pre-registered as placeholder sub-sections in {@code fortunateone.cfg} on first startup.
+     */
+    @Config.Ignore
+    private static final List<String> GTNH_DIMENSIONS = Arrays.asList(
+        // Vanilla / classic dimensions
+        "Overworld",
+        "Nether",
+        "The End",
+        "EndAsteroid",
+        // Mod dimensions
+        "Twilight Forest",
+        "dimensionDarkWorld",
+        "Underdark",
+        // GalactiCraft Core
+        "moon",
+        // GalactiCraft Planets
+        "mars",
+        "asteroids",
+        // BartWorks Crossmod
+        "ross128b",
+        "ross128ba",
+        // GalaxySpace — Solar System
+        "deimos",
+        "phobos",
+        "callisto",
+        "ceres",
+        "europa",
+        "ganymed",
+        "iojupiter",
+        "enceladus",
+        "miranda",
+        "oberon",
+        "titan",
+        // GalaxySpace — Inner planets
+        "mercury",
+        "venus",
+        // GalaxySpace — Outer / dwarf planets
+        "pluto",
+        "haumea",
+        "makemake",
+        "kuiperbelt",
+        // GalaxySpace — Other star systems
+        "centauribb",
+        "vega1",
+        "barnarda2",
+        "barnarda4",
+        "barnarda5",
+        "tcetie",
+        "triton",
+        "proteus",
+        // Amun-Ra
+        "neper",
+        "maahes",
+        "anubis",
+        "horus",
+        "seth",
+        "asteroidbeltmehen");
 
     /**
      * Returns the effective {@link DimensionOverride} for the given dimension name.
@@ -108,7 +170,27 @@ public class FortunateOneConfig {
     public static void initDimensionConfig(File configFile) {
         dimensionConfig = new Configuration(configFile);
         dimensionConfig.load();
+        preRegisterKnownDimensions();
         rebuildDimensionOverrideMap();
+    }
+
+    /**
+     * Writes placeholder sub-sections for all {@link #GTNH_DIMENSIONS} in one batch.
+     * Skips any dimension that already has a sub-section (user-configured or previously written).
+     * Saves once at the end only if anything was actually added.
+     */
+    private static void preRegisterKnownDimensions() {
+        if (dimensionConfig == null) return;
+        for (String dimName : GTNH_DIMENSIONS) {
+            String category = CAT_DIM_OVERRIDES + "." + dimName;
+            if (dimensionConfig.hasCategory(category)) continue;
+            writeDefaultDimensionSection(category);
+        }
+        if (dimensionConfig.hasChanged()) {
+            dimensionConfig.save();
+            FortunateOneMod.LOG
+                .info("[Fortunate One] Pre-registered {} known GTNH dimension(s) in config.", GTNH_DIMENSIONS.size());
+        }
     }
 
     /**
@@ -126,7 +208,16 @@ public class FortunateOneConfig {
         // Reload to pick up any external edits before we potentially write.
         dimensionConfig.load();
         if (dimensionConfig.hasCategory(category)) return;
+        writeDefaultDimensionSection(category);
+        dimensionOverrideMap.put(dimName, new DimensionOverride(-1, -1, -1, -1, -1));
+        if (dimensionConfig.hasChanged()) {
+            dimensionConfig.save();
+        }
+        FortunateOneMod.LOG.info("[Fortunate One] Added config section for new dimension: '{}'", dimName);
+    }
 
+    /** Writes the five default {@code -1} properties into a dimension sub-section. */
+    private static void writeDefaultDimensionSection(String category) {
         dimensionConfig.getInt(
             "minY",
             category,
@@ -162,13 +253,6 @@ public class FortunateOneConfig {
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
             "Between ore layers. Set all three layer fields together, or all at -1 for no layer override.");
-
-        dimensionOverrideMap.put(dimName, new DimensionOverride(-1, -1, -1, -1, -1));
-
-        if (dimensionConfig.hasChanged()) {
-            dimensionConfig.save();
-        }
-        FortunateOneMod.LOG.info("[Fortunate One] Added config section for new dimension: '{}'", dimName);
     }
 
     /**
