@@ -19,7 +19,7 @@ public class CommonProxy {
         } catch (Exception e) {
             throw new RuntimeException("Failed to register Fortunate One config", e);
         }
-        FortunateOneConfig.initDimensionConfig(event.getSuggestedConfigurationFile());
+        FortunateOneConfig.initDimensionConfig();
         MinecraftForge.EVENT_BUS.register(this);
         FortunateOneMod.LOG.info("[Fortunate One] Version " + Tags.VERSION + " initializing.");
         FortunateOneMod.LOG.info(
@@ -43,7 +43,9 @@ public class CommonProxy {
 
     public void init(FMLInitializationEvent event) {}
 
-    public void postInit(FMLPostInitializationEvent event) {}
+    public void postInit(FMLPostInitializationEvent event) {
+        FortunateOneConfig.initDimensionConfigLate();
+    }
 
     public void serverStarting(FMLServerStartingEvent event) {
         event.registerServerCommand(new CommandFortunateOne());

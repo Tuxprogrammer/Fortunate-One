@@ -152,7 +152,13 @@ class WorldgenBehaviourTest {
         } catch (java.io.IOException e) {
             throw new RuntimeException("Could not create temp config file", e);
         }
-        FortunateOneConfig.initDimensionConfig(tmp);
+        net.minecraftforge.common.config.Configuration testCfg = new net.minecraftforge.common.config.Configuration(
+            tmp);
+        testCfg.load();
+        FortunateOneConfig.testConfig = testCfg;
+        FortunateOneConfig.initDimensionConfig();
+        FortunateOneConfig.initDimensionConfigLate();
+        FortunateOneConfig.testConfig = null;
 
         DimensionOverride overworld = FortunateOneConfig.getDimensionOverride("Overworld");
         assertNotNull(overworld, "known GTNH dimensions should be pre-seeded");

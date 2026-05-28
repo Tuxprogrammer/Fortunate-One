@@ -10,6 +10,7 @@ import java.nio.file.Path;
 
 import net.minecraftforge.common.config.Configuration;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -28,14 +29,26 @@ class FortunateOneConfigReloadTest {
         minecraftHome.set(null, tempDir.toFile());
     }
 
+    @AfterEach
+    void clearTestConfig() {
+        FortunateOneConfig.testConfig = null;
+    }
+
     @Test
     void reloadFromDisk_updatesMainOptionsAndDimensionOverrides() {
         File configFile = tempDir.resolve("config")
             .resolve("fortunateone.cfg")
             .toFile();
 
+        // Create and inject a test Configuration backed by the temp file.
+        Configuration testCfg = new Configuration(configFile);
+        testCfg.load();
+        FortunateOneConfig.testConfig = testCfg;
+
         writeConfig(configFile, true, 10, 50, 3, 2, 1);
-        FortunateOneConfig.initDimensionConfig(configFile);
+        // Load the config from testCfg (which is backed by the now-written file).
+        testCfg.load();
+        FortunateOneConfig.initDimensionConfig();
 
         writeConfig(configFile, false, 20, 90, 4, 3, 2);
         FortunateOneConfig.reloadFromDisk();

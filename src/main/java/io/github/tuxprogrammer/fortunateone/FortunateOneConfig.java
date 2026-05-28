@@ -12,6 +12,7 @@ import net.minecraftforge.common.config.Configuration;
 import net.minecraftforge.common.config.Property;
 
 import com.gtnewhorizon.gtnhlib.config.Config;
+import com.gtnewhorizon.gtnhlib.config.ConfigurationManager;
 
 @Config(modid = FortunateOneMod.MOD_ID, filename = "fortunateone")
 @Config.LangKey("fortunateone.config")
@@ -47,10 +48,21 @@ public class FortunateOneConfig {
     private static final Map<String, DimensionOverride> dimensionOverrideMap = new HashMap<>();
 
     @Config.Ignore
+    private static Configuration dimensionConfig = null;
+
+    /** Path to the config file (same one GTNHLib manages). Guessed from GTNHLib's own config. */
+    @Config.Ignore
     private static File configFile = null;
 
+    /**
+     * Test-only override: when non-null, this Configuration is used instead of
+     * a fresh one pointed at the same file. Set from unit tests that run
+     * without a live Forge/GTNHLib environment.
+     * <strong>Must be set before calling {@link #initDimensionConfig()} or
+     * {@link #reloadFromDisk()}.</strong>
+     */
     @Config.Ignore
-    private static Configuration dimensionConfig = null;
+    public static Configuration testConfig = null;
 
     @Config.Ignore
     private static final String CAT_DIM_OVERRIDES = "dimensionoverrides";
@@ -167,13 +179,42 @@ public class FortunateOneConfig {
     }
 
     /**
-     * Initialises the dimension override config backed by {@code fortunateone.cfg}.
-     * Loads the file and rebuilds the dimension override map.
-     * Called once at startup after gtnhlib has registered the main config.
+     * Initialises the dimension override config with our own {@link Configuration}
+     * pointed at the same physical file that GTNHLib manages ({@code config/fortunateone.cfg}).
+     * Only loads from disk; does NOT write dimension sections yet — that happens in
+     * {@link #initDimensionConfigLate()} after GTNHLib's culling phase.
+     * <p>
+     * In unit tests (no live Forge/GTNHLib), set {@link #testConfig} to a standalone
+     * {@link Configuration} before calling this method.
      */
-    public static void initDimensionConfig(File configFile) {
-        FortunateOneConfig.configFile = configFile;
-        dimensionConfig = new Configuration(configFile);
+    public static void initDimensionConfig() {
+        if (testConfig != null) {
+            dimensionConfig = testConfig;
+        } else {
+            // Extract the file path from GTNHLib's own Configuration object.
+            Configuration gtnhConfig = ConfigurationManager.getConfig(FortunateOneConfig.class);
+            if (gtnhConfig == null) {
+                throw new IllegalStateException(
+                    "GTNHLib Configuration not yet registered for FortunateOneConfig. "
+                        + "Ensure ConfigurationManager.registerConfig is called before initDimensionConfig.");
+            }
+            configFile = gtnhConfig.getConfigFile();
+            dimensionConfig = new Configuration(configFile);
+        }
+        dimensionConfig.load();
+        // Do NOT write (save) here — GTNHLib's onInit() will cull unknown categories
+        // and save over us. We just load to read the current state into the override map.
+        rebuildDimensionOverrideMap();
+    }
+
+    /**
+     * Called during {@code postInit}, after GTNHLib's culling phase has completed.
+     * Writes the pre-seeded dimension sections to disk for the first time.
+     */
+    public static void initDimensionConfigLate() {
+        if (dimensionConfig == null) {
+            throw new IllegalStateException("Fortunate One config has not been initialized yet.");
+        }
         dimensionConfig.load();
         preRegisterKnownDimensions();
         rebuildDimensionOverrideMap();
@@ -181,13 +222,14 @@ public class FortunateOneConfig {
 
     /** Reloads all Fortunate One config values from disk. */
     public static void reloadFromDisk() {
-        if (configFile == null) {
+        if (dimensionConfig == null) {
             throw new IllegalStateException("Fortunate One config has not been initialized yet.");
         }
-        Configuration config = new Configuration(configFile);
-        config.load();
-        reloadMainOptions(config);
-        dimensionConfig = config;
+        // Re-read the shared GTNHLib-managed config file from disk.
+        dimensionConfig.load();
+        // Reload main options from the general category.
+        reloadMainOptions(dimensionConfig);
+        // Pre-seed any new dimensions and rebuild the override map.
         preRegisterKnownDimensions();
         rebuildDimensionOverrideMap();
         FortunateOneMod.LOG.info(
