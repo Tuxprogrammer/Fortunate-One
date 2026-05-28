@@ -23,7 +23,7 @@ All options live in the `general` category.
 
 Dimension overrides are configured in a dedicated section of `config/fortunateone.cfg`.
 
-**Auto-discovery:** The first time the mod generates ore veins in a dimension, it automatically adds a sub-section for that dimension with all fields set to `-1` (no override). You can then edit the values and restart to apply them.
+**Auto-discovery:** The first time the mod generates ore veins in a dimension, it automatically adds a sub-section for that dimension with all fields set to `-1` (no override). You can then edit the values and reload the config to apply them to newly generated chunks.
 
 **Config structure:**
 
@@ -81,10 +81,18 @@ dimensionOverrides {
 > (`S,S,S,S+B,B,P+B,P+B,P,P`) to pure sequential blocks (all S, then all B, then all P).
 > The small ore placer always runs afterwards regardless of layer settings.
 
+## Reloading Config In-Game
+
+Server operators can run `/fortunateone reload` to reload all Fortunate One config values from `config/fortunateone.cfg` without restarting the server.
+
+- Requires command permission level `2` (server operator level).
+- Reloads all main `general` options and all `dimensionOverrides` values from disk.
+- Worldgen changes apply to newly generated chunks only; already-generated chunks are not modified.
+
 ## Notes
 
 - The config can be edited in-game via the **Mods** screen → select *Fortunate One* → **Config**. Changes saved through the GUI apply immediately to newly generated chunks without restarting. Dimension override sub-sections are not shown in the GUI but can be edited directly in the file.
-- Changes made directly to `config/fortunateone.cfg` take effect on the next game launch (or server restart).
+- Changes made directly to `config/fortunateone.cfg` take effect after running `/fortunateone reload` or on the next game launch/server restart.
 - The `affectBigOresOnly` option cannot be meaningfully set to `false` — small ore processing is not intercepted by this mod regardless of the setting.
 - To disable the fortune uncap entirely, set all three `*UnlimitedFortune` flags to `false`. Worldgen options remain active independently.
 

@@ -2,6 +2,7 @@ package io.github.tuxprogrammer.fortunateone.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -139,15 +140,11 @@ class WorldgenBehaviourTest {
     }
 
     /**
-     * When no dimension overrides are configured, {@link FortunateOneConfig#getDimensionOverride}
-     * should return {@code null} for any dimension name (including {@code "*"}).
-     *
-     * <p>
-     * This verifies that the absent-wildcard path in {@code getDimensionOverride} is exercised
-     * and does not throw.
+     * Known GTNH ore-bearing dimensions are pre-seeded as placeholder sections. Each placeholder
+     * shadows the global default with all fields set to {@code -1}.
      */
     @Test
-    void getDimensionOverrideReturnsNullWhenNoOverridesConfigured() {
+    void knownDimensionsArePreSeededWithPlaceholderOverrides() {
         java.io.File tmp;
         try {
             tmp = java.io.File.createTempFile("fortunateone-test", ".cfg");
@@ -155,13 +152,17 @@ class WorldgenBehaviourTest {
         } catch (java.io.IOException e) {
             throw new RuntimeException("Could not create temp config file", e);
         }
-        // Point dimension config at an empty temp file — no sections, no properties.
         FortunateOneConfig.initDimensionConfig(tmp);
+
+        DimensionOverride overworld = FortunateOneConfig.getDimensionOverride("Overworld");
+        assertNotNull(overworld, "known GTNH dimensions should be pre-seeded");
+        assertEquals(-1, overworld.minY);
+        assertEquals(-1, overworld.maxY);
+        assertEquals(-1, overworld.primaryLayers);
+        assertEquals(-1, overworld.secondaryLayers);
+        assertEquals(-1, overworld.betweenLayers);
         assertNull(
-            FortunateOneConfig.getDimensionOverride("Overworld"),
-            "getDimensionOverride must return null when no overrides are configured");
-        assertNull(
-            FortunateOneConfig.getDimensionOverride("Nether"),
-            "getDimensionOverride must return null for Nether when no overrides are configured");
+            FortunateOneConfig.getDimensionOverride("Unknown Test Dimension"),
+            "unknown dimensions without sections should still have no override");
     }
 }

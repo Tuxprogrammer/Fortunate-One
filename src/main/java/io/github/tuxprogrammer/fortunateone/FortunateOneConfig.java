@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import net.minecraftforge.common.config.ConfigCategory;
@@ -46,10 +47,13 @@ public class FortunateOneConfig {
     private static final Map<String, DimensionOverride> dimensionOverrideMap = new HashMap<>();
 
     @Config.Ignore
+    private static File configFile = null;
+
+    @Config.Ignore
     private static Configuration dimensionConfig = null;
 
     @Config.Ignore
-    private static final String CAT_DIM_OVERRIDES = "dimensionOverrides";
+    private static final String CAT_DIM_OVERRIDES = "dimensionoverrides";
 
     /**
      * All GTNH dimensions known to spawn GT ore veins, in rough progression order.
@@ -117,7 +121,7 @@ public class FortunateOneConfig {
      * Returns {@code null} if no override is configured.
      */
     public static DimensionOverride getDimensionOverride(String dimName) {
-        DimensionOverride exact = dimensionOverrideMap.get(dimName);
+        DimensionOverride exact = dimensionOverrideMap.get(normalizeDimensionName(dimName));
         if (exact != null) return exact;
         return dimensionOverrideMap.get("*");
     }
@@ -168,10 +172,65 @@ public class FortunateOneConfig {
      * Called once at startup after gtnhlib has registered the main config.
      */
     public static void initDimensionConfig(File configFile) {
+        FortunateOneConfig.configFile = configFile;
         dimensionConfig = new Configuration(configFile);
         dimensionConfig.load();
         preRegisterKnownDimensions();
         rebuildDimensionOverrideMap();
+    }
+
+    /** Reloads all Fortunate One config values from disk. */
+    public static void reloadFromDisk() {
+        if (configFile == null) {
+            throw new IllegalStateException("Fortunate One config has not been initialized yet.");
+        }
+        Configuration config = new Configuration(configFile);
+        config.load();
+        reloadMainOptions(config);
+        dimensionConfig = config;
+        preRegisterKnownDimensions();
+        rebuildDimensionOverrideMap();
+        FortunateOneMod.LOG.info(
+            "[Fortunate One] Config reloaded from disk. GT={}, BW={}, GTPP={}, bigOnly={}, placed={}, equalWeights={}",
+            gregTechUnlimitedFortune,
+            bartWorksUnlimitedFortune,
+            gtPlusPlusUnlimitedFortune,
+            affectBigOresOnly,
+            allowPlacedOreFortune,
+            equalizeOreVeinWeights);
+    }
+
+    private static void reloadMainOptions(Configuration config) {
+        gregTechUnlimitedFortune = config.getBoolean(
+            "gregTechUnlimitedFortune",
+            "general",
+            true,
+            "Apply unlimited Fortune to GregTech (GT5U) big ore drops.");
+        bartWorksUnlimitedFortune = config.getBoolean(
+            "bartWorksUnlimitedFortune",
+            "general",
+            true,
+            "Apply unlimited Fortune to BartWorks big ore drops.");
+        gtPlusPlusUnlimitedFortune = config.getBoolean(
+            "gtPlusPlusUnlimitedFortune",
+            "general",
+            true,
+            "Apply unlimited Fortune to GT++ big ore drops.");
+        affectBigOresOnly = config.getBoolean(
+            "affectBigOresOnly",
+            "general",
+            true,
+            "Only affect big ores. Small ores always use vanilla GT behavior. (Recommended: true)");
+        allowPlacedOreFortune = config.getBoolean(
+            "allowPlacedOreFortune",
+            "general",
+            true,
+            "Allow placed (non-natural) big ores to receive Fortune. GT normally zeroes fortune for placed ores; this bypasses that.");
+        equalizeOreVeinWeights = config.getBoolean(
+            "equalizeOreVeinWeights",
+            "general",
+            true,
+            "Equalize the spawn weight of all GT ore veins so every vein type has an equal chance of being selected per worldgen attempt.");
     }
 
     /**
@@ -209,7 +268,7 @@ public class FortunateOneConfig {
         dimensionConfig.load();
         if (dimensionConfig.hasCategory(category)) return;
         writeDefaultDimensionSection(category);
-        dimensionOverrideMap.put(dimName, new DimensionOverride(-1, -1, -1, -1, -1));
+        dimensionOverrideMap.put(normalizeDimensionName(dimName), new DimensionOverride(-1, -1, -1, -1, -1));
         if (dimensionConfig.hasChanged()) {
             dimensionConfig.save();
         }
@@ -313,7 +372,7 @@ public class FortunateOneConfig {
                 secondaryLayers,
                 betweenLayers);
             // Always store — a per-dimension section shadows the global default even when all -1.
-            dimensionOverrideMap.put(dimName, override);
+            dimensionOverrideMap.put(normalizeDimensionName(dimName), override);
             if (override.hasHeightOverride() || override.hasLayerOverride()) {
                 int total = primaryLayers + secondaryLayers + betweenLayers;
                 FortunateOneMod.LOG.info(
@@ -331,6 +390,10 @@ public class FortunateOneConfig {
         if (!dimensionOverrideMap.isEmpty()) {
             FortunateOneMod.LOG.info("[Fortunate One] {} dimension override(s) active.", dimensionOverrideMap.size());
         }
+    }
+
+    private static String normalizeDimensionName(String dimName) {
+        return dimName.toLowerCase(Locale.ROOT);
     }
 
     /** Reads an integer property from a {@link ConfigCategory}, defaulting to {@code -1} if absent. */
