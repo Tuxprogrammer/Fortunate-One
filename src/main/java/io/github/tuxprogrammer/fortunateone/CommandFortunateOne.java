@@ -44,7 +44,7 @@ public class CommandFortunateOne extends CommandBase {
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public List addTabCompletionOptions(ICommandSender sender, String[] args) {
         if (args.length == 1) {
             return getListOfStringsMatchingLastWord(args, "reload");

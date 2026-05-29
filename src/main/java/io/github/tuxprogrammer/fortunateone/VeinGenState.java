@@ -31,21 +31,10 @@ public final class VeinGenState {
      * Reference to the active {@link ILayerGeneratorAccess} instance, set on the first
      * {@code generateLayer} intercept. Used by
      * {@link io.github.tuxprogrammer.fortunateone.mixins.MixinWorldgenGTOreLayer}
-     * to fire extra {@code generateLayer} calls beyond GT's fixed 9 when a layer override
-     * specifies a total greater than 9.
+     * to fire extra {@code generateLayer} calls beyond GT's fixed 8 when a layer override
+     * specifies a total greater than 8.
      */
     public ILayerGeneratorAccess generator = null;
-
-    /**
-     * Captures the final {@link #callIndex} of the most recently completed vein generation.
-     * Written by {@link io.github.tuxprogrammer.fortunateone.mixins.MixinWorldgenGTOreLayer}
-     * just before the ThreadLocal is cleared, so tests can verify how many layer calls were
-     * dispatched without needing to read the ThreadLocal inside the same stack frame.
-     *
-     * <p>
-     * Not thread-safe — intended for single-threaded test use only.
-     */
-    public static volatile int lastCompletedCallIndex = 0;
 
     public VeinGenState(DimensionOverride override, Random rng) {
         this.override = override;

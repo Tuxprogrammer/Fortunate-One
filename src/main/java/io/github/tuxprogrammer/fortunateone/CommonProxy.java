@@ -34,8 +34,15 @@ public class CommonProxy {
     @SubscribeEvent
     public void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
         if (FortunateOneMod.MOD_ID.equals(event.modID)) {
+            // This event fires from inside GuiConfig.actionPerformed BEFORE the screen switch
+            // that triggers onGuiClosed. We must NOT call dimensionConfig.load() here (or
+            // anything that does) — Forge has just written the user's GUI edits into the
+            // in-memory Properties and disk is still stale. rebuildDimensionOverrideMap()
+            // is load-free since the fix; it simply re-derives the override map from the
+            // current in-memory Configuration. The actual save-to-disk happens later in
+            // FortunateOneGuiConfig.onGuiClosed via persistAndRebuildFromMemory().
             FortunateOneMod.LOG.info(
-                "[Fortunate One] In-game config change detected; reloading dimension overrides."
+                "[Fortunate One] In-game config change detected; refreshing dimension override map."
                     + " Changes apply to newly generated chunks only.");
             FortunateOneConfig.rebuildDimensionOverrideMap();
         }

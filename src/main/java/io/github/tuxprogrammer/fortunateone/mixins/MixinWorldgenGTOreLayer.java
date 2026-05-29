@@ -14,6 +14,7 @@ import galacticgreg.api.enums.DimensionDef;
 import gregtech.common.WorldgenGTOreLayer;
 import io.github.tuxprogrammer.fortunateone.FortunateOneConfig;
 import io.github.tuxprogrammer.fortunateone.FortunateOneConfig.DimensionOverride;
+import io.github.tuxprogrammer.fortunateone.FortunateOneMod;
 import io.github.tuxprogrammer.fortunateone.VeinGenState;
 
 /**
@@ -71,6 +72,21 @@ public abstract class MixinWorldgenGTOreLayer {
         String dimName = DimensionDef.getDimensionName(world);
         FortunateOneConfig.registerDimension(dimName);
         DimensionOverride eff = FortunateOneConfig.getDimensionOverride(dimName);
+        FortunateOneMod.LOG.info(
+            "[FO-DEBUG] initVeinState: dim='{}' chunk=[{},{}] override={}",
+            dimName,
+            chunkX,
+            chunkZ,
+            eff == null ? "null (no override)"
+                : String.format(
+                    "Y=[%d,%d] layers=sec:%d bet:%d pri:%d hasLayer=%b hasHeight=%b",
+                    eff.minY,
+                    eff.maxY,
+                    eff.secondaryLayers,
+                    eff.betweenLayers,
+                    eff.primaryLayers,
+                    eff.hasLayerOverride(),
+                    eff.hasHeightOverride()));
         if (eff != null) {
             VeinGenState.CURRENT.set(new VeinGenState(eff, rng));
         } else {
@@ -104,10 +120,15 @@ public abstract class MixinWorldgenGTOreLayer {
         if (!eff.hasLayerOverride()) return;
         int total = eff.primaryLayers + eff.secondaryLayers + eff.betweenLayers;
         if (total <= 8 || state.generator == null) return;
+        FortunateOneMod.LOG.info(
+            "[FO-DEBUG] addExtraLayers FIRING: total={} GT gave 8 calls, adding {} more (indices 8..{})",
+            total,
+            total - 8,
+            total - 1);
         for (int i = 8; i < total; i++) {
-            // Args are ignored; MixinLayerGenerator dispatches the correct ore type
-            // based on VeinGenState.callIndex.
+            FortunateOneMod.LOG.info("[FO-DEBUG]   extraLayer i={} callIndex-before={}", i, state.callIndex);
             state.generator.callGenerateLayer(false, false, false);
+            FortunateOneMod.LOG.info("[FO-DEBUG]   extraLayer i={} callIndex-after={}", i, state.callIndex);
         }
     }
 
@@ -117,10 +138,6 @@ public abstract class MixinWorldgenGTOreLayer {
      */
     @Inject(method = "executeWorldgenChunkified", at = @At("RETURN"))
     private void fortuneone$cleanVeinState(CallbackInfoReturnable<Integer> cir) {
-        VeinGenState state = VeinGenState.CURRENT.get();
-        if (state != null) {
-            VeinGenState.lastCompletedCallIndex = state.callIndex;
-        }
         VeinGenState.CURRENT.remove();
     }
 }

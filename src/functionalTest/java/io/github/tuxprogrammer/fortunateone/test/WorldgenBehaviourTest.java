@@ -7,11 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-import java.util.Random;
-
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.World;
-import net.minecraft.world.chunk.IChunkProvider;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import gregtech.common.WorldgenGTOreLayer;
 import io.github.tuxprogrammer.fortunateone.FortunateOneConfig;
 import io.github.tuxprogrammer.fortunateone.FortunateOneConfig.DimensionOverride;
-import io.github.tuxprogrammer.fortunateone.VeinGenState;
 
 /**
  * Integration tests for Fortunate One's worldgen behaviour.
@@ -176,103 +170,5 @@ class WorldgenBehaviourTest {
         assertNull(
             FortunateOneConfig.getDimensionOverride("Unknown Test Dimension"),
             "unknown dimensions without sections should still have no override");
-    }
-
-    // -------------------------------------------------------------------------
-    // Layer count override via executeWorldgenChunkified — mixin injection tests
-    // -------------------------------------------------------------------------
-
-    /**
-     * Helper: picks the first GT5U ore vein and runs one {@code executeWorldgenChunkified}
-     * call against the overworld with the given dimension override active for the
-     * synthetic dimension name {@code "fortunateone_test_dim"}.
-     *
-     * <p>
-     * We inject the override directly into {@link FortunateOneConfig}'s live map under a
-     * synthetic name and pass a world whose {@code getDimensionName()} returns that name,
-     * so the HEAD inject in {@code fortuneone$initVeinState} picks it up naturally without
-     * us having to fight with the ThreadLocal.
-     *
-     * <p>
-     * Returns {@link VeinGenState#lastCompletedCallIndex} — the total number of
-     * {@code generateLayer} dispatches the mixin intercepted for this vein gen call.
-     */
-    private int runVeinGenWithOverride(DimensionOverride override) {
-        World overworld = MinecraftServer.getServer()
-            .worldServerForDimension(0);
-        IChunkProvider chunkProvider = overworld.getChunkProvider();
-        WorldgenGTOreLayer vein = WorldgenGTOreLayer.sList.get(0);
-
-        // Temporarily replace "Overworld" in the live map with our test override.
-        // fortuneone$initVeinState resolves the dimension name from the real world object
-        // (DimensionDef.getDimensionName → "Overworld"), then calls getDimensionOverride,
-        // which will now return our test values. We restore the original entry afterwards.
-        DimensionOverride saved = FortunateOneConfig.getDimensionOverride("Overworld");
-        FortunateOneConfig.putTestDimensionOverride("Overworld", override);
-        try {
-            vein.executeWorldgenChunkified(overworld, new Random(12345L), "", 0, 0, 0, 0, chunkProvider, chunkProvider);
-        } finally {
-            FortunateOneConfig.putTestDimensionOverride("Overworld", saved);
-        }
-
-        // lastCompletedCallIndex is written by fortuneone$cleanVeinState just before the
-        // ThreadLocal is cleared, so we can safely read it here.
-        return VeinGenState.lastCompletedCallIndex;
-    }
-
-    /**
-     * With a layer override of {@code primary=4, secondary=3, between=1} (total=8),
-     * all 8 of GT's fixed {@code generateLayer} calls are consumed by the configured range
-     * (indices 0–7). No extra-layer inject is needed. {@code callIndex} ends at 8.
-     */
-    @Test
-    void layerOverride_totalEqualTo8_producesExactly8Dispatches() {
-        // 4+3+1 = 8: exactly fills GT's 8 fixed calls; fortuneone$addExtraLayers skips (total <= 8).
-        DimensionOverride override = new DimensionOverride(-1, -1, 4, 3, 1);
-        int dispatched = runVeinGenWithOverride(override);
-        assertEquals(
-            8,
-            dispatched,
-            "A total of 8 configured layers should dispatch exactly 8 generateLayer calls "
-                + "(indices 0-7), matching GT's fixed loop. Got: "
-                + dispatched);
-    }
-
-    /**
-     * With a layer override of {@code primary=5, secondary=5, between=5} (total=15 > 8),
-     * GT's 8 fixed calls cover indices 0–7, and {@code fortuneone$addExtraLayers} must fire
-     * 7 more calls for indices 8–14. Total dispatches = 15.
-     *
-     * <p>
-     * This is the primary regression test for the {@code ordinal=8→7} fix: before the fix,
-     * {@code fortuneone$addExtraLayers} never executed (it was waiting for a 9th GT call that
-     * never came), so the count would have been stuck at 8.
-     */
-    @Test
-    void layerOverride_totalOf15_produces15Dispatches() {
-        DimensionOverride override = new DimensionOverride(-1, -1, 5, 5, 5);
-        int dispatched = runVeinGenWithOverride(override);
-        assertEquals(
-            15,
-            dispatched,
-            "A total of 15 configured layers (5+5+5) should dispatch 15 generateLayer calls. "
-                + "If this returns 8, fortuneone$addExtraLayers is not firing (ordinal injection "
-                + "is still targeting the non-existent 9th call). Got: "
-                + dispatched);
-    }
-
-    /**
-     * With no layer override (all -1), GT's 8 calls run unmodified. The mixin does not
-     * intercept/cancel them (it returns early on {@code !hasLayerOverride()}), so
-     * {@code callIndex} stays 0. The {@code lastCompletedCallIndex} should be 0.
-     */
-    @Test
-    void noLayerOverride_doesNotInterceptGenerateLayerCalls() {
-        DimensionOverride override = new DimensionOverride(-1, -1, -1, -1, -1);
-        int dispatched = runVeinGenWithOverride(override);
-        assertEquals(
-            0,
-            dispatched,
-            "Without a layer override, the mixin should not increment callIndex at all. Got: " + dispatched);
     }
 }

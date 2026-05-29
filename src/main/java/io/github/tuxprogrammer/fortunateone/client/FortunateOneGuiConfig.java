@@ -25,12 +25,14 @@ public class FortunateOneGuiConfig extends GuiConfig {
             parentScreen,
             buildElements(),
             FortunateOneMod.MOD_ID,
+            FortunateOneMod.MOD_ID, // configID — required for saveConfigElements() to fire on Done
             false,
             false,
-            FortunateOneMod.MOD_NAME + " Configuration");
+            FortunateOneMod.MOD_NAME + " Configuration",
+            null);
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings("rawtypes")
     private static List<IConfigElement> buildElements() throws ConfigException {
         // Standard @Config-managed fields (the 6 boolean options).
         List<IConfigElement> elements = new ArrayList<>(
@@ -49,20 +51,38 @@ public class FortunateOneGuiConfig extends GuiConfig {
 
     /**
      * Called when the user closes this GUI (Done button or Escape).
-     * The Forge GuiConfig framework has already written edited values into the
-     * in-memory {@link net.minecraftforge.common.config.Configuration} object, but
-     * has NOT called {@code save()} on it — that is our responsibility.
-     * We save first, then reload so the live override map reflects the new values.
+     *
+     * <p>
+     * <strong>State at entry:</strong> Forge's {@code GuiConfig.actionPerformed} has already
+     * iterated every {@code IConfigEntry} (including drillable subcategories) and pushed each
+     * edited widget value back into the underlying {@link net.minecraftforge.common.config.Property}
+     * via {@code ConfigElement.set()}. The in-memory {@link net.minecraftforge.common.config.Configuration}
+     * is the source of truth at this point; disk is stale.
+     *
+     * <p>
+     * <strong>What we must do:</strong> flush the in-memory state to disk so it survives a
+     * restart, then refresh our live override map from the (now-current) Properties.
+     * <strong>What we must NOT do:</strong> call {@code Configuration.load()} before saving.
+     * That was the bug — the {@code ConfigChangedEvent} handler in {@code CommonProxy} ran first
+     * and called the old {@code rebuildDimensionOverrideMap()} which internally invoked
+     * {@code load()}, overwriting the user's edits with the still-{@code -1} disk contents
+     * before they were ever persisted.
      */
     @Override
     public void onGuiClosed() {
+        // Log what the dimensionoverrides category looks like IN MEMORY before super.
+        // After the fix, PRE-super should reflect the user's edits (e.g. minY=1), proving
+        // Forge's GuiConfig wrote them. POST-super is unchanged because super.onGuiClosed
+        // is a pass-through to entryList.onGuiClosed and never touches Properties.
+        FortunateOneConfig.logDimensionOverridesState("[FO-DEBUG] onGuiClosed PRE-super");
         super.onGuiClosed();
+        FortunateOneConfig.logDimensionOverridesState("[FO-DEBUG] onGuiClosed POST-super");
         try {
-            // Flush GUI edits from memory to disk before reloading.
-            FortunateOneConfig.saveDimensionConfig();
-            FortunateOneConfig.reloadFromDisk();
+            // Save in-memory edits to disk and rebuild the live override map from memory.
+            // This is the only safe ordering: load() before save() would destroy the edits.
+            FortunateOneConfig.persistAndRebuildFromMemory();
         } catch (Exception e) {
-            FortunateOneMod.LOG.warn("[Fortunate One] Failed to save/reload config after GUI close", e);
+            FortunateOneMod.LOG.warn("[Fortunate One] Failed to persist config after GUI close", e);
         }
     }
 }

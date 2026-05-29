@@ -153,13 +153,49 @@ public class FortunateOneConfig {
 
     /**
      * Persists the current in-memory state of the dimension override config to disk.
-     * Must be called after the Forge config GUI edits the in-memory {@link Configuration}
-     * but before {@link #reloadFromDisk()} reads back from disk, otherwise GUI edits are lost.
+     * Since {@link #dimensionConfig} is now the same instance GTNHLib manages, GTNHLib's
+     * own save path (triggered by {@code super.onGuiClosed()}) already covers our categories.
+     * This method is kept for explicit save points (e.g. {@link #registerDimension}).
      */
     public static void saveDimensionConfig() {
         if (dimensionConfig != null) {
             dimensionConfig.save();
         }
+    }
+
+    /**
+     * Flushes the in-memory {@link Configuration} to disk and rebuilds the override map
+     * from the current in-memory state. Intended to be called from
+     * {@code FortunateOneGuiConfig.onGuiClosed()} after the user clicks Done.
+     *
+     * <p>
+     * Forge's {@code GuiConfig.actionPerformed} has already written every edited
+     * {@link Property} via {@code IntegerEntry.saveConfigElement()} → {@code ConfigElement.set()}.
+     * At this point the in-memory state is the source of truth; disk is stale. We must:
+     * <ol>
+     * <li>{@link Configuration#save()} — flush in-memory edits to disk so they survive a
+     * restart. GTNHLib's auto-save proxy covers the six top-level @Config booleans but NOT
+     * the {@code dimensionoverrides} category, because that category is added to the GUI
+     * via a raw {@link ConfigElement} wrapper rather than a {@code IConfigElementProxy}.
+     * Without this explicit save, dimension edits would live only in this JVM's memory
+     * and be lost on the next launch.</li>
+     * <li>{@link #rebuildDimensionOverrideMap()} — refresh {@link #dimensionOverrideMap}
+     * from the (now-current) in-memory Properties so live worldgen sees the new values
+     * immediately, without having to round-trip through disk.</li>
+     * </ol>
+     *
+     * <p>
+     * <strong>This method must not call {@link Configuration#load()}.</strong> Loading
+     * before saving would discard the user's GUI edits; loading after saving is a no-op
+     * round trip. Use {@link #reloadFromDisk()} when you actually want to re-read the file.
+     */
+    public static void persistAndRebuildFromMemory() {
+        if (dimensionConfig == null) return;
+        // Always save: hasChanged() is unreliable here because Forge's IntegerEntry.set()
+        // path on a shared Property may not flip the Configuration-level changed flag in
+        // every Forge version. Saving when nothing changed is a cheap no-op writer.
+        dimensionConfig.save();
+        rebuildDimensionOverrideMap();
     }
 
     /**
@@ -179,7 +215,13 @@ public class FortunateOneConfig {
         DimensionOverride global = dimensionOverrideMap.get("*");
 
         if (perDim == null && global == null) return null;
-        if (perDim == null) return global;
+
+        // No per-dim section: only return the global if it has an actual effect.
+        // A global of all -1 (no override) should not be surfaced for unknown dimensions.
+        if (perDim == null) {
+            return (global.hasHeightOverride() || global.hasLayerOverride()) ? global : null;
+        }
+
         if (global == null) return perDim;
 
         // Merge: per-dim wins per field; -1 in per-dim falls back to global default.
@@ -244,7 +286,11 @@ public class FortunateOneConfig {
         if (testConfig != null) {
             dimensionConfig = testConfig;
         } else {
-            // Extract the file path from GTNHLib's own Configuration object.
+            // Use GTNHLib's OWN Configuration instance — not a new one pointed at the same file.
+            // Creating a separate instance causes a two-writer conflict: when GTNHLib saves its
+            // instance after GUI close it overwrites whatever we saved to disk from our instance,
+            // because GTNHLib's instance has a stale snapshot of the dimension categories.
+            // By sharing the same instance, GTNHLib's save path covers our categories too.
             Configuration gtnhConfig = ConfigurationManager.getConfig(FortunateOneConfig.class);
             if (gtnhConfig == null) {
                 throw new IllegalStateException(
@@ -252,11 +298,10 @@ public class FortunateOneConfig {
                         + "Ensure ConfigurationManager.registerConfig is called before initDimensionConfig.");
             }
             configFile = gtnhConfig.getConfigFile();
-            dimensionConfig = new Configuration(configFile);
+            dimensionConfig = gtnhConfig; // share the instance, not just the file
         }
-        dimensionConfig.load();
-        // Do NOT write (save) here — GTNHLib's onInit() will cull unknown categories
-        // and save over us. We just load to read the current state into the override map.
+        // Do NOT call dimensionConfig.load() here — GTNHLib already loaded it and
+        // GTNHLib's onInit() culling pass runs after this. Just read the current state.
         rebuildDimensionOverrideMap();
     }
 
@@ -268,6 +313,8 @@ public class FortunateOneConfig {
         if (dimensionConfig == null) {
             throw new IllegalStateException("Fortunate One config has not been initialized yet.");
         }
+        // Load to pick up anything written to disk since initDimensionConfig ran.
+        // (GTNHLib's culling pass may have trimmed categories; we re-read the clean file.)
         dimensionConfig.load();
         writeGlobalDefaultSection();
         preRegisterKnownDimensions();
@@ -275,6 +322,72 @@ public class FortunateOneConfig {
         if (dimensionConfig.hasChanged()) {
             dimensionConfig.save();
         }
+        // DEBUG: dump the entire active override map so we can verify what the mod loaded.
+        FortunateOneMod.LOG.info("[FO-DEBUG] === Dimension override map after postInit ===");
+        // The global default is stored under the literal key "*" in the map.
+        FortunateOneMod.LOG
+            .info("[FO-DEBUG]   globalDefault (key='*'): {}", formatOverride(dimensionOverrideMap.get("*")));
+        for (Map.Entry<String, DimensionOverride> e : dimensionOverrideMap.entrySet()) {
+            FortunateOneMod.LOG.info("[FO-DEBUG]   map['{}'] raw={}", e.getKey(), formatOverride(e.getValue()));
+        }
+        FortunateOneMod.LOG.info("[FO-DEBUG] === End override map ({} entries) ===", dimensionOverrideMap.size());
+    }
+
+    /**
+     * Debug: logs the raw property values in the dimensionoverrides category
+     * directly from the Configuration object (not from the override map).
+     */
+    public static void logDimensionOverridesState(String prefix) {
+        if (dimensionConfig == null) {
+            FortunateOneMod.LOG.info("{} dimensionConfig=null", prefix);
+            return;
+        }
+        if (!dimensionConfig.hasCategory(CAT_DIM_OVERRIDES)) {
+            FortunateOneMod.LOG.info("{} category '{}' does not exist", prefix, CAT_DIM_OVERRIDES);
+            return;
+        }
+        net.minecraftforge.common.config.ConfigCategory cat = dimensionConfig.getCategory(CAT_DIM_OVERRIDES);
+        FortunateOneMod.LOG.info(
+            "{} dimensionoverrides top-level: minY={} maxY={} primaryLayers={} secondaryLayers={} betweenLayers={} | instanceId={}",
+            prefix,
+            cat.containsKey("minY") ? cat.get("minY")
+                .getInt(-999) : "(absent)",
+            cat.containsKey("maxY") ? cat.get("maxY")
+                .getInt(-999) : "(absent)",
+            cat.containsKey("primaryLayers") ? cat.get("primaryLayers")
+                .getInt(-999) : "(absent)",
+            cat.containsKey("secondaryLayers") ? cat.get("secondaryLayers")
+                .getInt(-999) : "(absent)",
+            cat.containsKey("betweenLayers") ? cat.get("betweenLayers")
+                .getInt(-999) : "(absent)",
+            System.identityHashCode(dimensionConfig));
+        if (dimensionConfig.hasCategory(CAT_DIM_OVERRIDES + ".overworld")) {
+            net.minecraftforge.common.config.ConfigCategory ow = dimensionConfig
+                .getCategory(CAT_DIM_OVERRIDES + ".overworld");
+            FortunateOneMod.LOG.info(
+                "{} dimensionoverrides.overworld: primaryLayers={} secondaryLayers={} betweenLayers={}",
+                prefix,
+                ow.containsKey("primaryLayers") ? ow.get("primaryLayers")
+                    .getInt(-999) : "(absent)",
+                ow.containsKey("secondaryLayers") ? ow.get("secondaryLayers")
+                    .getInt(-999) : "(absent)",
+                ow.containsKey("betweenLayers") ? ow.get("betweenLayers")
+                    .getInt(-999) : "(absent)");
+        }
+    }
+
+    /** Debug helper: formats a DimensionOverride as a compact string. */
+    private static String formatOverride(DimensionOverride o) {
+        if (o == null) return "null";
+        return String.format(
+            "Y=[%d,%d] layers=sec:%d bet:%d pri:%d hasLayer=%b hasHeight=%b",
+            o.minY,
+            o.maxY,
+            o.secondaryLayers,
+            o.betweenLayers,
+            o.primaryLayers,
+            o.hasLayerOverride(),
+            o.hasHeightOverride());
     }
 
     /** Reloads all Fortunate One config values from disk. */
@@ -282,12 +395,15 @@ public class FortunateOneConfig {
         if (dimensionConfig == null) {
             throw new IllegalStateException("Fortunate One config has not been initialized yet.");
         }
+        logDimensionOverridesState("[FO-DEBUG] reloadFromDisk PRE-load");
         // Re-read the shared GTNHLib-managed config file from disk.
         dimensionConfig.load();
+        logDimensionOverridesState("[FO-DEBUG] reloadFromDisk POST-load");
         // Reload main options from the general category.
         reloadMainOptions(dimensionConfig);
         // Ensure global-default properties are present (idempotent if already written).
         writeGlobalDefaultSection();
+        logDimensionOverridesState("[FO-DEBUG] reloadFromDisk POST-writeGlobal");
         // Pre-seed any new dimensions and rebuild the override map.
         preRegisterKnownDimensions();
         rebuildDimensionOverrideMap();
@@ -400,7 +516,9 @@ public class FortunateOneConfig {
     private static void preRegisterKnownDimensions() {
         if (dimensionConfig == null) return;
         for (String dimName : GTNH_DIMENSIONS) {
-            String category = CAT_DIM_OVERRIDES + "." + dimName;
+            // Forge lowercases category names on disk; normalize here so hasCategory()
+            // correctly detects existing user-edited sections like "overworld".
+            String category = CAT_DIM_OVERRIDES + "." + normalizeDimensionName(dimName);
             if (dimensionConfig.hasCategory(category)) continue;
             writeDefaultDimensionSection(category);
         }
@@ -422,9 +540,11 @@ public class FortunateOneConfig {
      */
     public static void registerDimension(String dimName) {
         if (dimensionConfig == null) return;
-        String category = CAT_DIM_OVERRIDES + "." + dimName;
-        // Reload to pick up any external edits before we potentially write.
-        dimensionConfig.load();
+        // Normalize to lowercase: Forge Configuration lowercases all category names
+        // when writing to disk, so hasCategory() must use the same case.
+        String category = CAT_DIM_OVERRIDES + "." + normalizeDimensionName(dimName);
+        // Do NOT call dimensionConfig.load() here — that would clobber any in-memory
+        // user edits (e.g. overworld 1 1 1) that haven't been re-read from disk yet.
         if (dimensionConfig.hasCategory(category)) return;
         writeDefaultDimensionSection(category);
         dimensionOverrideMap.put(normalizeDimensionName(dimName), new DimensionOverride(-1, -1, -1, -1, -1));
@@ -490,7 +610,13 @@ public class FortunateOneConfig {
         dimensionOverrideMap.clear();
         if (dimensionConfig == null) return;
 
-        dimensionConfig.load();
+        // DO NOT call dimensionConfig.load() here. This method is invoked from the
+        // ConfigChangedEvent handler immediately after the user clicks Done in the GUI;
+        // load() would re-read the (still stale) disk contents and clobber the in-memory
+        // Property values that Forge's GuiConfig just wrote in saveConfigElements(). The
+        // result was the bug where GUI edits to dimensionoverrides.* reverted to -1.
+        // Disk reloads belong in {@link #reloadFromDisk()}, which is the only public
+        // entry point for "discard in-memory state and re-read the file".
 
         // Read global default from top-level dimensionOverrides properties (only if set by user).
         if (dimensionConfig.hasCategory(CAT_DIM_OVERRIDES)) {
