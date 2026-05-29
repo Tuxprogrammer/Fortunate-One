@@ -94,7 +94,7 @@ public abstract class MixinWorldgenGTOreLayer {
         at = @At(
             value = "INVOKE",
             target = "Lgregtech/common/WorldgenGTOreLayer$LayerGenerator;access$100(Lgregtech/common/WorldgenGTOreLayer$LayerGenerator;ZZZ)V",
-            ordinal = 8,
+            ordinal = 7,
             shift = At.Shift.AFTER))
     private void fortuneone$addExtraLayers(World world, Random rng, String biome, int chunkX, int chunkZ, int seedX,
         int seedZ, IChunkProvider chunkGenerator, IChunkProvider chunkProvider, CallbackInfoReturnable<Integer> cir) {
@@ -103,8 +103,8 @@ public abstract class MixinWorldgenGTOreLayer {
         DimensionOverride eff = state.override;
         if (!eff.hasLayerOverride()) return;
         int total = eff.primaryLayers + eff.secondaryLayers + eff.betweenLayers;
-        if (total <= 9 || state.generator == null) return;
-        for (int i = 9; i < total; i++) {
+        if (total <= 8 || state.generator == null) return;
+        for (int i = 8; i < total; i++) {
             // Args are ignored; MixinLayerGenerator dispatches the correct ore type
             // based on VeinGenState.callIndex.
             state.generator.callGenerateLayer(false, false, false);
