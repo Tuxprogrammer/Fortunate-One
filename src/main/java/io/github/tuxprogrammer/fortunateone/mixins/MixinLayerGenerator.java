@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import io.github.tuxprogrammer.fortunateone.FortunateOneConfig.DimensionOverride;
+import io.github.tuxprogrammer.fortunateone.FortunateOneMod;
 import io.github.tuxprogrammer.fortunateone.ILayerGeneratorAccess;
 import io.github.tuxprogrammer.fortunateone.VeinGenState;
 
@@ -89,6 +90,11 @@ public abstract class MixinLayerGenerator implements ILayerGeneratorAccess {
     }
 
     @Override
+    public int getLevel() {
+        return level;
+    }
+
+    @Override
     public void setLevel(int level) {
         this.level = level;
     }
@@ -144,16 +150,26 @@ public abstract class MixinLayerGenerator implements ILayerGeneratorAccess {
         // we replace veinMinY with our configured range here.
         if (!state.heightAdjusted && eff.hasHeightOverride()) {
             int range = eff.maxY - eff.minY - 5;
+            int oldLevel = this.level;
             if (range > 0) {
                 this.level = eff.minY + state.rng.nextInt(range) - 1;
             } else {
                 this.level = eff.minY - 1;
             }
+            FortunateOneMod.LOG.info(
+                "[FO-DEBUG] heightAdjust: oldLevel={} newLevel={} minY={} maxY={} range={}",
+                oldLevel,
+                this.level,
+                eff.minY,
+                eff.maxY,
+                range);
             state.heightAdjusted = true;
         }
 
         if (!eff.hasLayerOverride()) {
             // Height-only override: let the original call run with the adjusted level.
+            FortunateOneMod.LOG
+                .info("[FO-DEBUG] layer[passthru]: no layer override, letting original run at level={}", this.level);
             return;
         }
 
@@ -169,10 +185,29 @@ public abstract class MixinLayerGenerator implements ILayerGeneratorAccess {
         int priEnd = betEnd + eff.primaryLayers;
 
         if (idx >= priEnd) {
-            // Custom vein is shorter than 9 layers: skip ore placement but advance Y.
-            this.level++;
+            // All configured layers have been placed. Cancel this surplus GT call without
+            // advancing level — the vein's Y footprint should match the configured total,
+            // not GT's fixed 8-call loop.
+            FortunateOneMod.LOG.info(
+                "[FO-DEBUG] layer[skip]: idx={} >= priEnd={} (sec={} bet={} pri={}) level={} — NO level advance",
+                idx,
+                priEnd,
+                secEnd,
+                betEnd,
+                eff.primaryLayers,
+                this.level);
             return;
         }
+
+        String oreType = idx < secEnd ? "SECONDARY" : (idx < betEnd ? "BETWEEN" : "PRIMARY");
+        FortunateOneMod.LOG.info(
+            "[FO-DEBUG] layer[place]: idx={} oreType={} level={} secEnd={} betEnd={} priEnd={}",
+            idx,
+            oreType,
+            this.level,
+            secEnd,
+            betEnd,
+            priEnd);
 
         fortuneone$inCustomCall = true;
         try {
@@ -186,5 +221,6 @@ public abstract class MixinLayerGenerator implements ILayerGeneratorAccess {
         } finally {
             fortuneone$inCustomCall = false;
         }
+        FortunateOneMod.LOG.info("[FO-DEBUG] layer[place]: idx={} level-after={}", idx, this.level);
     }
 }

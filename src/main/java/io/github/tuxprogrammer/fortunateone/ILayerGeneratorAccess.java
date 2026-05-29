@@ -20,6 +20,9 @@ public interface ILayerGeneratorAccess {
     /** Returns {@code true} if at least one ore block has been placed in this vein. */
     boolean isPlaced();
 
+    /** Returns the current Y level used by the next {@code generateLayer} call. */
+    int getLevel();
+
     /** Sets the current Y level used by the next {@code generateLayer} call. */
     void setLevel(int level);
 
