@@ -14,7 +14,7 @@ import net.minecraftforge.common.config.Property;
 import com.gtnewhorizon.gtnhlib.config.Config;
 import com.gtnewhorizon.gtnhlib.config.ConfigurationManager;
 
-@Config(modid = FortunateOneMod.MOD_ID, filename = "fortunateone")
+@Config(modid = FortunateOneMod.MOD_ID, filename = "fortunateone", categoryCulling = false)
 @Config.LangKey("fortunateone.config")
 public class FortunateOneConfig {
 
@@ -128,14 +128,52 @@ public class FortunateOneConfig {
         "asteroidbeltmehen");
 
     /**
-     * Returns the effective {@link DimensionOverride} for the given dimension name.
-     * Checks for an exact name match first, then falls back to the {@code "*"} global default.
-     * Returns {@code null} if no override is configured.
+     * Returns the raw Forge {@link Configuration} backing the dimension override sections,
+     * or {@code null} if not yet initialised. Used by the config GUI to build
+     * a drillable category element for dimension overrides.
+     */
+    public static Configuration getDimensionConfig() {
+        return dimensionConfig;
+    }
+
+    /**
+     * Persists the current in-memory state of the dimension override config to disk.
+     * Must be called after the Forge config GUI edits the in-memory {@link Configuration}
+     * but before {@link #reloadFromDisk()} reads back from disk, otherwise GUI edits are lost.
+     */
+    public static void saveDimensionConfig() {
+        if (dimensionConfig != null) {
+            dimensionConfig.save();
+        }
+    }
+
+    /**
+     * Returns the effective {@link DimensionOverride} for the given dimension name,
+     * applying the three-tier precedence:
+     * <ol>
+     * <li>GT5U native behaviour — when a field is {@code -1} all the way down.</li>
+     * <li>Global default — top-level {@code dimensionoverrides.*} properties.</li>
+     * <li>Per-dimension override — {@code dimensionoverrides.<dimName>.*} sub-section.</li>
+     * </ol>
+     * A per-dimension field of {@code -1} falls back to the global default.
+     * A global default of {@code -1} means "no override; use GT5U native behaviour".
+     * Returns {@code null} if no tier has any override active.
      */
     public static DimensionOverride getDimensionOverride(String dimName) {
-        DimensionOverride exact = dimensionOverrideMap.get(normalizeDimensionName(dimName));
-        if (exact != null) return exact;
-        return dimensionOverrideMap.get("*");
+        DimensionOverride perDim = dimensionOverrideMap.get(normalizeDimensionName(dimName));
+        DimensionOverride global = dimensionOverrideMap.get("*");
+
+        if (perDim == null && global == null) return null;
+        if (perDim == null) return global;
+        if (global == null) return perDim;
+
+        // Merge: per-dim wins per field; -1 in per-dim falls back to global default.
+        int minY = perDim.minY != -1 ? perDim.minY : global.minY;
+        int maxY = perDim.maxY != -1 ? perDim.maxY : global.maxY;
+        int primaryLayers = perDim.primaryLayers != -1 ? perDim.primaryLayers : global.primaryLayers;
+        int secondaryLayers = perDim.secondaryLayers != -1 ? perDim.secondaryLayers : global.secondaryLayers;
+        int betweenLayers = perDim.betweenLayers != -1 ? perDim.betweenLayers : global.betweenLayers;
+        return new DimensionOverride(minY, maxY, primaryLayers, secondaryLayers, betweenLayers);
     }
 
     /** Parsed representation of one dimension override. */
@@ -216,8 +254,12 @@ public class FortunateOneConfig {
             throw new IllegalStateException("Fortunate One config has not been initialized yet.");
         }
         dimensionConfig.load();
+        writeGlobalDefaultSection();
         preRegisterKnownDimensions();
         rebuildDimensionOverrideMap();
+        if (dimensionConfig.hasChanged()) {
+            dimensionConfig.save();
+        }
     }
 
     /** Reloads all Fortunate One config values from disk. */
@@ -229,6 +271,8 @@ public class FortunateOneConfig {
         dimensionConfig.load();
         // Reload main options from the general category.
         reloadMainOptions(dimensionConfig);
+        // Ensure global-default properties are present (idempotent if already written).
+        writeGlobalDefaultSection();
         // Pre-seed any new dimensions and rebuild the override map.
         preRegisterKnownDimensions();
         rebuildDimensionOverrideMap();
@@ -273,6 +317,64 @@ public class FortunateOneConfig {
             "general",
             true,
             "Equalize the spawn weight of all GT ore veins so every vein type has an equal chance of being selected per worldgen attempt.");
+    }
+
+    /**
+     * Writes the five global-default properties directly under the top-level
+     * {@code dimensionoverrides} category (not a sub-section).
+     * Values default to {@code -1} (no override / use GT5U native behaviour).
+     * This call is idempotent — existing user values are never overwritten.
+     * <p>
+     * These act as the middle tier of the three-level precedence:
+     * <em>GT5U defaults ← global defaults here ← per-dimension sub-section overrides.</em>
+     */
+    private static void writeGlobalDefaultSection() {
+        if (dimensionConfig == null) return;
+        dimensionConfig.getInt(
+            "minY",
+            CAT_DIM_OVERRIDES,
+            -1,
+            Integer.MIN_VALUE,
+            Integer.MAX_VALUE,
+            "Global default minimum Y for ore vein placement. -1 = no override (use GT5U behaviour). "
+                + "Per-dimension sub-sections below take precedence over this value.");
+        dimensionConfig.getInt(
+            "maxY",
+            CAT_DIM_OVERRIDES,
+            -1,
+            Integer.MIN_VALUE,
+            Integer.MAX_VALUE,
+            "Global default maximum Y for ore vein placement. -1 = no override (use GT5U behaviour).");
+        dimensionConfig.getInt(
+            "primaryLayers",
+            CAT_DIM_OVERRIDES,
+            -1,
+            Integer.MIN_VALUE,
+            Integer.MAX_VALUE,
+            "Global default primary ore layers. -1 = no override. Set all three layer fields together.");
+        dimensionConfig.getInt(
+            "secondaryLayers",
+            CAT_DIM_OVERRIDES,
+            -1,
+            Integer.MIN_VALUE,
+            Integer.MAX_VALUE,
+            "Global default secondary ore layers. -1 = no override. Set all three layer fields together.");
+        dimensionConfig.getInt(
+            "betweenLayers",
+            CAT_DIM_OVERRIDES,
+            -1,
+            Integer.MIN_VALUE,
+            Integer.MAX_VALUE,
+            "Global default between ore layers. -1 = no override. Set all three layer fields together.");
+        if (dimensionConfig.hasCategory(CAT_DIM_OVERRIDES)) {
+            dimensionConfig.getCategory(CAT_DIM_OVERRIDES)
+                .setComment(
+                    "Dimension override settings. The five properties at the TOP of this section are "
+                        + "GLOBAL DEFAULTS applied to every dimension. A value of -1 means \"no override; "
+                        + "use GT5U native behaviour\". Sub-sections below (one per dimension) take "
+                        + "precedence: a per-dimension -1 falls back to the global default, and a "
+                        + "global default of -1 falls back to GT5U native behaviour.");
+        }
     }
 
     /**
