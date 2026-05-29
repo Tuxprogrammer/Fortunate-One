@@ -117,6 +117,10 @@ public abstract class MixinWorldgenGTOreLayer {
      */
     @Inject(method = "executeWorldgenChunkified", at = @At("RETURN"))
     private void fortuneone$cleanVeinState(CallbackInfoReturnable<Integer> cir) {
+        VeinGenState state = VeinGenState.CURRENT.get();
+        if (state != null) {
+            VeinGenState.lastCompletedCallIndex = state.callIndex;
+        }
         VeinGenState.CURRENT.remove();
     }
 }

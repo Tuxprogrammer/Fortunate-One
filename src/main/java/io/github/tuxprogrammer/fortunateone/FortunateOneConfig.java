@@ -68,6 +68,21 @@ public class FortunateOneConfig {
     private static final String CAT_DIM_OVERRIDES = "dimensionoverrides";
 
     /**
+     * Test-only: directly inserts an entry into the dimension override map, bypassing
+     * config file I/O. Intended for use in functional tests that need to set a specific
+     * override for a dimension name without a live config file.
+     * Call with {@code null} to remove an entry.
+     */
+    public static void putTestDimensionOverride(String dimName, DimensionOverride override) {
+        String key = normalizeDimensionName(dimName);
+        if (override == null) {
+            dimensionOverrideMap.remove(key);
+        } else {
+            dimensionOverrideMap.put(key, override);
+        }
+    }
+
+    /**
      * All GTNH dimensions known to spawn GT ore veins, in rough progression order.
      * Pre-registered as placeholder sub-sections in {@code fortunateone.cfg} on first startup.
      */

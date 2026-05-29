@@ -36,6 +36,17 @@ public final class VeinGenState {
      */
     public ILayerGeneratorAccess generator = null;
 
+    /**
+     * Captures the final {@link #callIndex} of the most recently completed vein generation.
+     * Written by {@link io.github.tuxprogrammer.fortunateone.mixins.MixinWorldgenGTOreLayer}
+     * just before the ThreadLocal is cleared, so tests can verify how many layer calls were
+     * dispatched without needing to read the ThreadLocal inside the same stack frame.
+     *
+     * <p>
+     * Not thread-safe — intended for single-threaded test use only.
+     */
+    public static volatile int lastCompletedCallIndex = 0;
+
     public VeinGenState(DimensionOverride override, Random rng) {
         this.override = override;
         this.rng = rng;
