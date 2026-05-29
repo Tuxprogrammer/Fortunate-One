@@ -44,6 +44,11 @@ public class FortunateOneConfig {
     @Config.DefaultBoolean(true)
     public static boolean equalizeOreVeinWeights = true;
 
+    @Config.Comment("Enable verbose [FO-DEBUG] log output for dimension override resolution and vein layer"
+        + " generation. Generates one log line per ore layer per generated chunk — disable in production.")
+    @Config.DefaultBoolean(false)
+    public static boolean verboseDebugLogging = false;
+
     @Config.Ignore
     private static final Map<String, DimensionOverride> dimensionOverrideMap = new HashMap<>();
 
@@ -322,15 +327,15 @@ public class FortunateOneConfig {
         if (dimensionConfig.hasChanged()) {
             dimensionConfig.save();
         }
-        // DEBUG: dump the entire active override map so we can verify what the mod loaded.
-        FortunateOneMod.LOG.info("[FO-DEBUG] === Dimension override map after postInit ===");
-        // The global default is stored under the literal key "*" in the map.
-        FortunateOneMod.LOG
-            .info("[FO-DEBUG]   globalDefault (key='*'): {}", formatOverride(dimensionOverrideMap.get("*")));
-        for (Map.Entry<String, DimensionOverride> e : dimensionOverrideMap.entrySet()) {
-            FortunateOneMod.LOG.info("[FO-DEBUG]   map['{}'] raw={}", e.getKey(), formatOverride(e.getValue()));
+        if (verboseDebugLogging) {
+            FortunateOneMod.LOG.info("[FO-DEBUG] === Dimension override map after postInit ===");
+            FortunateOneMod.LOG
+                .info("[FO-DEBUG]   globalDefault (key='*'): {}", formatOverride(dimensionOverrideMap.get("*")));
+            for (Map.Entry<String, DimensionOverride> e : dimensionOverrideMap.entrySet()) {
+                FortunateOneMod.LOG.info("[FO-DEBUG]   map['{}'] raw={}", e.getKey(), formatOverride(e.getValue()));
+            }
+            FortunateOneMod.LOG.info("[FO-DEBUG] === End override map ({} entries) ===", dimensionOverrideMap.size());
         }
-        FortunateOneMod.LOG.info("[FO-DEBUG] === End override map ({} entries) ===", dimensionOverrideMap.size());
     }
 
     /**
@@ -338,6 +343,7 @@ public class FortunateOneConfig {
      * directly from the Configuration object (not from the override map).
      */
     public static void logDimensionOverridesState(String prefix) {
+        if (!verboseDebugLogging) return;
         if (dimensionConfig == null) {
             FortunateOneMod.LOG.info("{} dimensionConfig=null", prefix);
             return;
