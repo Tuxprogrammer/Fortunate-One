@@ -5,6 +5,7 @@ import java.util.Random;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.IChunkProvider;
 
+import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -97,45 +98,49 @@ public abstract class MixinWorldgenGTOreLayer {
     }
 
     /**
-     * After GT's fixed 9 {@code generateLayer} calls (invoked via the synthetic {@code access$100}
-     * accessor), fires additional calls for layer overrides that specify more than 9 total layers
-     * (primary + secondary + between > 9).
+     * After all of GT's {@code generateLayer} calls have run, fires additional calls for layer
+     * overrides that specify more layers than GT generates by default.
+     *
+     * <p>
+     * Injects at the first {@code GETFIELD placed} read in {@code executeWorldgenChunkified},
+     * which occurs immediately after the last {@code generateLayer} call and immediately before
+     * the {@code if (!generator.placed)} early-exit check. This avoids relying on synthetic
+     * accessor names (e.g. {@code access$100}) that change under jvmDowngrader.
      *
      * <p>
      * The extra calls pass through
      * {@link MixinLayerGenerator#fortuneone$interceptGenerateLayer} which uses
-     * {@link VeinGenState#callIndex} to dispatch the correct ore type, so layer ordering is
-     * consistent with the &le;9 case.
+     * {@link VeinGenState#callIndex} to dispatch the correct ore type.
      */
     @Inject(
         method = "executeWorldgenChunkified",
         at = @At(
-            value = "INVOKE",
-            target = "Lgregtech/common/WorldgenGTOreLayer$LayerGenerator;access$100(Lgregtech/common/WorldgenGTOreLayer$LayerGenerator;ZZZ)V",
-            ordinal = 7,
-            shift = At.Shift.AFTER))
+            value = "FIELD",
+            target = "Lgregtech/common/WorldgenGTOreLayer$LayerGenerator;placed:Z",
+            opcode = Opcodes.GETFIELD,
+            ordinal = 0))
     private void fortuneone$addExtraLayers(World world, Random rng, String biome, int chunkX, int chunkZ, int seedX,
         int seedZ, IChunkProvider chunkGenerator, IChunkProvider chunkProvider, CallbackInfoReturnable<Integer> cir) {
         VeinGenState state = VeinGenState.CURRENT.get();
         if (state == null) return;
         DimensionOverride eff = state.override;
         if (!eff.hasLayerOverride()) return;
+        if (state.generator == null) return;
         int total = eff.primaryLayers + eff.secondaryLayers + eff.betweenLayers;
-        if (total <= 8 || state.generator == null) return;
-        if (FortunateOneConfig.verboseDebugLogging) {
+        if (FortunateOneConfig.verboseDebugLogging && state.callIndex < total) {
             FortunateOneMod.LOG.info(
-                "[FO-DEBUG] addExtraLayers FIRING: total={} GT gave 8 calls, adding {} more (indices 8..{})",
+                "[FO-DEBUG] addExtraLayers FIRING: callIndex={} total={}, adding {} more",
+                state.callIndex,
                 total,
-                total - 8,
-                total - 1);
+                total - state.callIndex);
         }
-        for (int i = 8; i < total; i++) {
+        while (state.callIndex < total) {
             if (FortunateOneConfig.verboseDebugLogging) {
-                FortunateOneMod.LOG.info("[FO-DEBUG]   extraLayer i={} callIndex-before={}", i, state.callIndex);
+                FortunateOneMod.LOG.info("[FO-DEBUG]   extraLayer callIndex-before={}", state.callIndex);
             }
             state.generator.callGenerateLayer(false, false, false);
             if (FortunateOneConfig.verboseDebugLogging) {
-                FortunateOneMod.LOG.info("[FO-DEBUG]   extraLayer i={} callIndex-after={}", i, state.callIndex);
+                FortunateOneMod.LOG.info("[FO-DEBUG]   extraLayer callIndex-after={}", state.callIndex);
             }
         }
     }

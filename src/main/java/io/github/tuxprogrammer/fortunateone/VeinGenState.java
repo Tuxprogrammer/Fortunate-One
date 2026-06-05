@@ -31,7 +31,7 @@ public final class VeinGenState {
      * Reference to the active {@link ILayerGeneratorAccess} instance, set on the first
      * {@code generateLayer} intercept. Used by
      * {@link io.github.tuxprogrammer.fortunateone.mixins.MixinWorldgenGTOreLayer}
-     * to fire extra {@code generateLayer} calls beyond GT's fixed 8 when a layer override
+     * to fire extra {@code generateLayer} calls beyond GT's fixed 9 when a layer override
      * specifies a total greater than 8.
      */
     public ILayerGeneratorAccess generator = null;

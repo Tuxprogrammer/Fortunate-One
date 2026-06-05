@@ -30,10 +30,10 @@ import io.github.tuxprogrammer.fortunateone.VeinGenState;
  * skipped but still advance {@code level} to maintain Y spacing.
  *
  * <p>
- * <b>Layer count cap</b>: because {@code executeWorldgenChunkified} makes exactly 8
- * {@code generateLayer} calls, layers 0–7 come from GT's loop. Any total ≤8 is fully
- * handled here. Totals &gt;8 receive the remaining calls via {@code fortuneone$addExtraLayers}
- * in {@link MixinWorldgenGTOreLayer} which fires after GT's 8th (final) call.
+ * <b>Layer count cap</b>: because {@code executeWorldgenChunkified} makes exactly 9
+ * {@code generateLayer} calls (via jvmDowngrader nest wrappers), layers 0–8 come from GT's
+ * loop. Any total ≤9 is fully handled here. Totals &gt;9 receive the remaining calls via
+ * {@code fortuneone$addExtraLayers} in {@link MixinWorldgenGTOreLayer}.
  *
  * <p>
  * <b>Simplified layer order</b>: the custom sequence uses pure S→B→P blocks rather than the
