@@ -61,7 +61,7 @@ class WorldgenBehaviourTest {
 
     /**
      * When {@code equalizeOreVeinWeights} is {@code true} (the default), every call to
-     * {@link WorldgenGTOreLayer#getWeight()} must return {@code 1}.
+     * {@link WorldgenGTOreLayer#getWeight()} must return {@code 10}.
      *
      * <p>
      * This also serves as a smoke test that {@code MixinWorldgenGTOreLayer} was
@@ -69,18 +69,18 @@ class WorldgenBehaviourTest {
      * {@code mWeight} values (which vary per vein) would be returned instead.
      */
     @Test
-    void weightEqualizationEnabledReturnsOneForAllVeins() {
+    void weightEqualizationEnabledReturnsTenForAllVeins() {
         FortunateOneConfig.equalizeOreVeinWeights = true;
         final List<WorldgenGTOreLayer> veins = WorldgenGTOreLayer.sList;
         for (int i = 0; i < veins.size(); i++) {
             final WorldgenGTOreLayer vein = veins.get(i);
             assertEquals(
-                1,
+                10,
                 vein.getWeight(),
                 "Vein at sList[" + i
                     + "] returned weight "
                     + vein.getWeight()
-                    + " instead of 1 while equalizeOreVeinWeights=true. "
+                    + " instead of 10 while equalizeOreVeinWeights=true. "
                     + "MixinWorldgenGTOreLayer may not have been applied.");
         }
     }

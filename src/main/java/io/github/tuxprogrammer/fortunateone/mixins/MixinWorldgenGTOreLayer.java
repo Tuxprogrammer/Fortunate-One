@@ -38,18 +38,22 @@ import io.github.tuxprogrammer.fortunateone.VeinGenState;
 public abstract class MixinWorldgenGTOreLayer {
 
     /**
-     * Overrides {@code getWeight()} to return {@code 1} for all veins when
+     * Overrides {@code getWeight()} to return {@code 10} for all veins when
      * {@link FortunateOneConfig#equalizeOreVeinWeights} is enabled.
      *
      * <p>
      * {@code getWeight()} is called by {@code WorldgenQuery.findRandomWithWeight()} during vein
-     * selection. Returning 1 uniformly makes selection probability equal across all registered
-     * veins.
+     * selection. Returning 10 uniformly makes selection probability equal across all registered
+     * veins. We use 10 rather than 1 so that the weighted-random algorithm in GT5U (which has an
+     * off-by-one: it checks {@code remainingAmount <= 0} instead of {@code < 0}) does not
+     * permanently exclude the last vein in the list — with weight 1 a roll of exactly
+     * {@code total - 1} would land on the penultimate vein and leave the last unreachable; with
+     * weight 10 the same edge case only biases the last vein slightly rather than zeroing it out.
      */
     @Inject(method = "getWeight", at = @At("HEAD"), cancellable = true)
     private void fortuneone$equalizeWeight(CallbackInfoReturnable<Integer> cir) {
         if (FortunateOneConfig.equalizeOreVeinWeights) {
-            cir.setReturnValue(1);
+            cir.setReturnValue(10);
         }
     }
 
