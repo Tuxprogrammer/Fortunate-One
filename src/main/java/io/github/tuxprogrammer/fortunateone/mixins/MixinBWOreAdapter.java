@@ -66,6 +66,8 @@ public class MixinBWOreAdapter {
         if (!needsUncap && !needsPlacedBypass) return;
 
         if (info.stoneType == null) info.stoneType = gregtech.api.enums.StoneType.Stone;
+        // BW only has ore blocks for GT's own StoneType enum; let the original return its empty list
+        if (!(info.stoneType instanceof gregtech.api.enums.StoneType)) return;
 
         int richMult = info.stoneType.isRich() ? 2 : 1;
         int dropCount = FortuneDropCalculator.uncappedGTBigOreDropCount(random, effectiveFortune, richMult);

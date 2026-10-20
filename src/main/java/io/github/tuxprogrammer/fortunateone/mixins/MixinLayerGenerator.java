@@ -17,8 +17,9 @@ import io.github.tuxprogrammer.fortunateone.VeinGenState;
  * <ol>
  * <li>Implement the {@link ILayerGeneratorAccess} accessor interface, exposing fields and the
  * private {@code generateLayer} method for use by {@link MixinWorldgenGTOreLayer}.</li>
- * <li>Intercept each {@code generateLayer} call to apply per-dimension Y range and layer count
- * overrides stored in {@link VeinGenState#CURRENT}.</li>
+ * <li>Intercept each {@code generateLayer} call to apply the per-dimension layer count override
+ * stored in {@link VeinGenState#CURRENT}. (The Y range override is applied earlier, to the vein's
+ * {@code VeinPlacement}, by {@link MixinWorldgenGTOreLayer}.)</li>
  * </ol>
  *
  * <p>
@@ -27,13 +28,18 @@ import io.github.tuxprogrammer.fortunateone.VeinGenState;
  * (secondary → between → primary, sequential blocks). A recursion guard field
  * ({@code fortuneone$inCustomCall}) prevents the intercept from firing again on the replacement
  * call we issue ourselves. Calls beyond the configured total (secondary + between + primary) are
- * skipped but still advance {@code level} to maintain Y spacing.
+ * skipped without advancing {@code level}, so the vein's Y footprint matches the configured total.
  *
  * <p>
- * <b>Layer count cap</b>: because {@code executeWorldgenChunkified} makes exactly 9
- * {@code generateLayer} calls (via jvmDowngrader nest wrappers), layers 0–8 come from GT's
- * loop. Any total ≤9 is fully handled here. Totals &gt;9 receive the remaining calls via
- * {@code fortuneone$addExtraLayers} in {@link MixinWorldgenGTOreLayer}.
+ * <b>Layer count cap</b>: because {@code generateWithPlacement} makes exactly 9
+ * {@code generateLayer} calls, layers 0–8 come from GT's loop. Any total ≤9 is fully handled
+ * here. Totals &gt;9 receive the remaining calls via {@code fortuneone$addExtraLayers} in
+ * {@link MixinWorldgenGTOreLayer}.
+ *
+ * <p>
+ * <b>Dry runs</b>: GT's {@code testWorldgenChunkified} drives the same {@code generateLayer}
+ * calls with {@code dryRun = true}; GT's own body short-circuits once anything could be placed,
+ * so the intercept needs no special handling for it.
  *
  * <p>
  * <b>Simplified layer order</b>: the custom sequence uses pure S→B→P blocks rather than the
@@ -41,7 +47,7 @@ import io.github.tuxprogrammer.fortunateone.VeinGenState;
  * from vanilla; this is intentional.
  *
  * <p>
- * <b>Small ore placer</b>: because we never cancel {@code executeWorldgenChunkified} itself, the
+ * <b>Small ore placer</b>: because we never cancel {@code generateWithPlacement} itself, the
  * original GT5U small ore placer block always runs after our custom layer sequence. No replication
  * needed.
  */
@@ -134,7 +140,7 @@ public abstract class MixinLayerGenerator implements ILayerGeneratorAccess {
 
         VeinGenState state = VeinGenState.CURRENT.get();
         if (state == null) {
-            // No active dimension override — pass through unchanged.
+            // No active layer override — pass through unchanged.
             return;
         }
 
@@ -145,37 +151,8 @@ public abstract class MixinLayerGenerator implements ILayerGeneratorAccess {
         }
 
         DimensionOverride eff = state.override;
-
-        // Adjust vein start Y on the first call if a height override is configured.
-        // The original code set generator.level = veinMinY - 1 just before the first call;
-        // we replace veinMinY with our configured range here.
-        if (!state.heightAdjusted && eff.hasHeightOverride()) {
-            int range = eff.maxY - eff.minY - 5;
-            int oldLevel = this.level;
-            if (range > 0) {
-                this.level = eff.minY + state.rng.nextInt(range) - 1;
-            } else {
-                this.level = eff.minY - 1;
-            }
-            if (FortunateOneConfig.verboseDebugLogging) {
-                FortunateOneMod.LOG.info(
-                    "[FO-DEBUG] heightAdjust: oldLevel={} newLevel={} minY={} maxY={} range={}",
-                    oldLevel,
-                    this.level,
-                    eff.minY,
-                    eff.maxY,
-                    range);
-            }
-            state.heightAdjusted = true;
-        }
-
         if (!eff.hasLayerOverride()) {
-            // Height-only override: let the original call run with the adjusted level.
-            if (FortunateOneConfig.verboseDebugLogging) {
-                FortunateOneMod.LOG.info(
-                    "[FO-DEBUG] layer[passthru]: no layer override, letting original run at level={}",
-                    this.level);
-            }
+            // Only layer overrides are installed in CURRENT; stay defensive anyway.
             return;
         }
 

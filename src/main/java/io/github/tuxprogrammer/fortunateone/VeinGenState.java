@@ -1,11 +1,9 @@
 package io.github.tuxprogrammer.fortunateone;
 
-import java.util.Random;
-
 import io.github.tuxprogrammer.fortunateone.FortunateOneConfig.DimensionOverride;
 
 /**
- * Carries per-vein override state between the HEAD inject in
+ * Carries per-vein layer override state between the {@code generateWithPlacement} HEAD inject in
  * {@link io.github.tuxprogrammer.fortunateone.mixins.MixinWorldgenGTOreLayer} and the
  * {@code generateLayer} intercept in
  * {@link io.github.tuxprogrammer.fortunateone.mixins.MixinLayerGenerator}.
@@ -23,21 +21,18 @@ public final class VeinGenState {
     public static final ThreadLocal<VeinGenState> CURRENT = new ThreadLocal<>();
 
     public final DimensionOverride override;
-    public final Random rng;
-    public boolean heightAdjusted = false;
     public int callIndex = 0;
 
     /**
      * Reference to the active {@link ILayerGeneratorAccess} instance, set on the first
      * {@code generateLayer} intercept. Used by
      * {@link io.github.tuxprogrammer.fortunateone.mixins.MixinWorldgenGTOreLayer}
-     * to fire extra {@code generateLayer} calls beyond GT's fixed 9 when a layer override
-     * specifies a total greater than 8.
+     * to fire extra {@code generateLayer} calls when a layer override specifies more layers than
+     * GT's fixed loop generates.
      */
     public ILayerGeneratorAccess generator = null;
 
-    public VeinGenState(DimensionOverride override, Random rng) {
+    public VeinGenState(DimensionOverride override) {
         this.override = override;
-        this.rng = rng;
     }
 }

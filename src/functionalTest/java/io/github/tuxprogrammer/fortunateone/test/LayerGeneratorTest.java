@@ -3,7 +3,6 @@ package io.github.tuxprogrammer.fortunateone.test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -143,10 +142,10 @@ class LayerGeneratorTest {
      * Creates a {@link VeinGenState} for the given override and installs it in
      * {@link VeinGenState#CURRENT}. The caller holds the returned reference; the state
      * object survives after the ThreadLocal is cleaned up at the end of
-     * {@code executeWorldgenChunkified}, so assertions against it remain valid.
+     * {@code generateWithPlacement}, so assertions against it remain valid.
      */
     private VeinGenState setOverride(DimensionOverride override) {
-        VeinGenState state = new VeinGenState(override, new Random(0L));
+        VeinGenState state = new VeinGenState(override);
         VeinGenState.CURRENT.set(state);
         return state;
     }
@@ -173,62 +172,29 @@ class LayerGeneratorTest {
     }
 
     // -------------------------------------------------------------------------
-    // Branches C + D + F: height-only override, range > 0
+    // Height-only override: the intercept leaves it alone
     // -------------------------------------------------------------------------
 
     /**
-     * On the first call the mixin adjusts {@code level} to a value within the configured Y range,
-     * sets {@code heightAdjusted = true}, and stores a reference to this LayerGenerator in
-     * {@code state.generator}. It then lets the original body run (no cancel), so
-     * {@code callIndex} is never incremented. On the second call, no further height adjustment
-     * takes place.
+     * Height overrides are applied to the {@code VeinPlacement} (see {@code VeinPlacementTest}),
+     * not inside {@code generateLayer}. A height-only state must therefore pass every call through
+     * unchanged: {@code callIndex} stays 0 and {@code level} advances once per call from wherever GT
+     * set it.
      */
     @Test
-    void heightOnlyOverride_rangePositive_adjustsLevelOnFirstCallOnly() throws Exception {
-        // range = maxY - minY - 5 = 55 > 0
+    void heightOnlyOverride_passesThroughWithoutTouchingLevel() throws Exception {
         DimensionOverride override = new DimensionOverride(20, 80, -1, -1, -1);
         VeinGenState state = setOverride(override);
         ILayerGeneratorAccess lg = newLayerGenerator(50);
 
         lg.callGenerateLayer(false, false, false);
 
-        assertTrue(state.heightAdjusted, "heightAdjusted must be true after first call");
         assertEquals(0, state.callIndex, "callIndex must not be touched for height-only override");
         assertSame(lg, state.generator, "state.generator must reference this LayerGenerator after first call");
-
-        // level was set to [minY-1 .. minY+range-1], then body increments → [minY .. minY+range]
-        int level = lg.getLevel();
-        int rangeEnd = override.minY + (override.maxY - override.minY - 5);
-        assertTrue(
-            level >= override.minY && level <= rangeEnd,
-            "Level " + level + " not in expected range [" + override.minY + ", " + rangeEnd + "]");
-
-        // Second call: height adjustment must NOT fire again
-        int levelAfterFirst = level;
-        lg.callGenerateLayer(false, false, false);
-        assertEquals(levelAfterFirst + 1, lg.getLevel(), "Level must advance by exactly 1 on the second call");
-    }
-
-    // -------------------------------------------------------------------------
-    // Branches C + E + F: height-only override, range <= 0
-    // -------------------------------------------------------------------------
-
-    /**
-     * When {@code maxY - minY - 5 <= 0} the mixin uses the deterministic path
-     * {@code level = minY - 1}. After the original body runs, level equals {@code minY}.
-     */
-    @Test
-    void heightOnlyOverride_rangeZeroOrNegative_setsLevelToMinYMinusOne() throws Exception {
-        // range = 24 - 20 - 5 = -1 <= 0
-        DimensionOverride override = new DimensionOverride(20, 24, -1, -1, -1);
-        VeinGenState state = setOverride(override);
-        ILayerGeneratorAccess lg = newLayerGenerator(50);
+        assertEquals(51, lg.getLevel(), "Level must advance from GT's own starting level");
 
         lg.callGenerateLayer(false, false, false);
-
-        assertTrue(state.heightAdjusted);
-        // inject sets level = minY - 1 = 19; body increments → 20
-        assertEquals(override.minY, lg.getLevel(), "Level must equal minY after first call with range <= 0");
+        assertEquals(52, lg.getLevel(), "Level must advance by exactly 1 on the second call");
     }
 
     // -------------------------------------------------------------------------

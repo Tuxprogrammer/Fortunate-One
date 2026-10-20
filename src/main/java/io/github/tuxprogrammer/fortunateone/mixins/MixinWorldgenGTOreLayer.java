@@ -3,7 +3,6 @@ package io.github.tuxprogrammer.fortunateone.mixins;
 import java.util.Random;
 
 import net.minecraft.world.World;
-import net.minecraft.world.chunk.IChunkProvider;
 
 import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
@@ -12,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import galacticgreg.api.enums.DimensionDef;
+import gregtech.api.objects.XSTR;
 import gregtech.common.WorldgenGTOreLayer;
 import io.github.tuxprogrammer.fortunateone.FortunateOneConfig;
 import io.github.tuxprogrammer.fortunateone.FortunateOneConfig.DimensionOverride;
@@ -21,18 +21,23 @@ import io.github.tuxprogrammer.fortunateone.VeinGenState;
 /**
  * Mixin into {@link WorldgenGTOreLayer} to:
  * <ol>
- * <li>Override {@code getWeight()} to return 1 for all veins when
+ * <li>Override {@code getWeight()} to return 10 for all veins when
  * {@link FortunateOneConfig#equalizeOreVeinWeights} is enabled, producing a uniform random
  * distribution over all registered vein types.</li>
- * <li>Resolve the per-dimension {@link DimensionOverride} at the start of each
- * {@code executeWorldgenChunkified} call and store it in {@link VeinGenState#CURRENT} so that
- * {@link MixinLayerGenerator} can access it without capturing local variables.</li>
+ * <li>Apply the per-dimension Y range override to the vein's {@code VeinPlacement} as soon as GT
+ * resolves it.</li>
+ * <li>Resolve the per-dimension layer override at the start of each {@code generateWithPlacement}
+ * call and store it in {@link VeinGenState#CURRENT} so that {@link MixinLayerGenerator} can access
+ * it without capturing local variables.</li>
  * </ol>
  *
  * <p>
- * The actual Y range and layer count override logic lives in {@link MixinLayerGenerator} to avoid
- * needing to capture the {@code LayerGenerator} local variable from
- * {@code executeWorldgenChunkified}.
+ * <b>GT5U 5.09.54 vein pipeline</b>: {@code GTWorldgenerator} calls {@code resolveVeinPlacement}
+ * once per oreseed, dry-runs it via {@code testWorldgenChunkified}, caches the placement, and then
+ * replays it through {@code executeWorldgenChunkified} for each chunk. Every path funnels into the
+ * private {@code generateWithPlacement}, which builds the {@code LayerGenerator} and makes GT's
+ * fixed {@code generateLayer} calls. Hooking {@code resolveVeinPlacement} (height) and
+ * {@code generateWithPlacement} (layers) therefore covers the dry run and the real run alike.
  */
 @Mixin(value = WorldgenGTOreLayer.class, remap = false)
 public abstract class MixinWorldgenGTOreLayer {
@@ -58,31 +63,70 @@ public abstract class MixinWorldgenGTOreLayer {
     }
 
     /**
-     * Initialises per-vein override state before ore layer generation begins.
+     * Rewrites the resolved vein's bottom Y when a height override is configured for the dimension.
      *
      * <p>
-     * Resolves the {@link DimensionOverride} for the current chunk's dimension and writes it to
-     * {@link VeinGenState#CURRENT}. {@link MixinLayerGenerator#fortuneone$interceptGenerateLayer}
-     * reads this state on each of the 9 {@code generateLayer} calls without needing to capture any
-     * local variables.
+     * The new Y mirrors GT's own formula ({@code minY + nextInt(maxY - minY - 5)}), but draws from a
+     * {@link Random} seeded with the placement's {@code generationSeed} instead of {@code rng}. This
+     * keeps the result deterministic per oreseed and leaves {@code rng}'s sequence untouched, so GT's
+     * subsequent ore placement is unaffected.
      *
      * <p>
      * {@link DimensionDef#getDimensionName(World)} is used for dimension name resolution because it
      * handles Galacticraft celestial bodies and falls back to
      * {@code world.provider.getDimensionName()} for unknown or future dimensions.
      */
-    @Inject(method = "executeWorldgenChunkified", at = @At("HEAD"))
-    private void fortuneone$initVeinState(World world, Random rng, String biome, int chunkX, int chunkZ, int seedX,
-        int seedZ, IChunkProvider chunkGenerator, IChunkProvider chunkProvider, CallbackInfoReturnable<Integer> cir) {
+    @Inject(method = "resolveVeinPlacement", at = @At("RETURN"))
+    private void fortuneone$overrideVeinHeight(World world, XSTR rng, int chunkX, int chunkZ, int seedX, int seedZ,
+        CallbackInfoReturnable<Object> cir) {
         String dimName = DimensionDef.getDimensionName(world);
         FortunateOneConfig.registerDimension(dimName);
         DimensionOverride eff = FortunateOneConfig.getDimensionOverride(dimName);
+        if (eff == null || !eff.hasHeightOverride()) return;
+
+        AccessorVeinPlacement placement = (AccessorVeinPlacement) cir.getReturnValue();
+        int oldMinY = placement.fortuneone$getVeinMinY();
+        int range = eff.maxY - eff.minY - 5;
+        int newMinY = range > 0 ? eff.minY + new Random(placement.fortuneone$getGenerationSeed()).nextInt(range)
+            : eff.minY;
+        placement.fortuneone$setVeinMinY(newMinY);
+
         if (FortunateOneConfig.verboseDebugLogging) {
             FortunateOneMod.LOG.info(
-                "[FO-DEBUG] initVeinState: dim='{}' chunk=[{},{}] override={}",
+                "[FO-DEBUG] heightAdjust: dim='{}' chunk=[{},{}] oldMinY={} newMinY={} minY={} maxY={} range={}",
                 dimName,
                 chunkX,
                 chunkZ,
+                oldMinY,
+                newMinY,
+                eff.minY,
+                eff.maxY,
+                range);
+        }
+    }
+
+    /**
+     * Initialises per-vein layer override state before GT's {@code generateLayer} calls begin.
+     *
+     * <p>
+     * Writes a {@link VeinGenState} to {@link VeinGenState#CURRENT} only when the dimension has a
+     * layer override; {@link MixinLayerGenerator#fortuneone$interceptGenerateLayer} reads it on each
+     * {@code generateLayer} call without needing to capture any local variables.
+     */
+    @Inject(method = "generateWithPlacement", at = @At("HEAD"))
+    private void fortuneone$initVeinState(World world, Random rng, boolean dryRun, int chunkX, int chunkZ, int seedX,
+        int seedZ, int veinMinY, int veinWestX, int veinEastX, int veinNorthZ, int veinSouthZ, int limitWestX,
+        int limitEastX, int limitNorthZ, int limitSouthZ, CallbackInfoReturnable<Integer> cir) {
+        String dimName = DimensionDef.getDimensionName(world);
+        DimensionOverride eff = FortunateOneConfig.getDimensionOverride(dimName);
+        if (FortunateOneConfig.verboseDebugLogging) {
+            FortunateOneMod.LOG.info(
+                "[FO-DEBUG] initVeinState: dim='{}' chunk=[{},{}] dryRun={} veinMinY={} override={}",
+                dimName,
+                chunkX,
+                chunkZ,
+                dryRun,
+                veinMinY,
                 eff == null ? "null (no override)"
                     : String.format(
                         "Y=[%d,%d] layers=sec:%d bet:%d pri:%d hasLayer=%b hasHeight=%b",
@@ -94,8 +138,8 @@ public abstract class MixinWorldgenGTOreLayer {
                         eff.hasLayerOverride(),
                         eff.hasHeightOverride()));
         }
-        if (eff != null) {
-            VeinGenState.CURRENT.set(new VeinGenState(eff, rng));
+        if (eff != null && eff.hasLayerOverride()) {
+            VeinGenState.CURRENT.set(new VeinGenState(eff));
         } else {
             VeinGenState.CURRENT.remove();
         }
@@ -106,10 +150,10 @@ public abstract class MixinWorldgenGTOreLayer {
      * overrides that specify more layers than GT generates by default.
      *
      * <p>
-     * Injects at the first {@code GETFIELD placed} read in {@code executeWorldgenChunkified},
-     * which occurs immediately after the last {@code generateLayer} call and immediately before
-     * the {@code if (!generator.placed)} early-exit check. This avoids relying on synthetic
-     * accessor names (e.g. {@code access$100}) that change under jvmDowngrader.
+     * Injects at the first {@code GETFIELD placed} read in {@code generateWithPlacement}, which
+     * occurs immediately after the last {@code generateLayer} call and immediately before the
+     * {@code if (!generator.placed)} early-exit check. This avoids relying on synthetic accessor
+     * names (e.g. {@code access$100}) that change under jvmDowngrader.
      *
      * <p>
      * The extra calls pass through
@@ -117,19 +161,17 @@ public abstract class MixinWorldgenGTOreLayer {
      * {@link VeinGenState#callIndex} to dispatch the correct ore type.
      */
     @Inject(
-        method = "executeWorldgenChunkified",
+        method = "generateWithPlacement",
         at = @At(
             value = "FIELD",
             target = "Lgregtech/common/WorldgenGTOreLayer$LayerGenerator;placed:Z",
             opcode = Opcodes.GETFIELD,
             ordinal = 0))
-    private void fortuneone$addExtraLayers(World world, Random rng, String biome, int chunkX, int chunkZ, int seedX,
-        int seedZ, IChunkProvider chunkGenerator, IChunkProvider chunkProvider, CallbackInfoReturnable<Integer> cir) {
+    private void fortuneone$addExtraLayers(CallbackInfoReturnable<Integer> cir) {
         VeinGenState state = VeinGenState.CURRENT.get();
         if (state == null) return;
-        DimensionOverride eff = state.override;
-        if (!eff.hasLayerOverride()) return;
         if (state.generator == null) return;
+        DimensionOverride eff = state.override;
         int total = eff.primaryLayers + eff.secondaryLayers + eff.betweenLayers;
         if (FortunateOneConfig.verboseDebugLogging && state.callIndex < total) {
             FortunateOneMod.LOG.info(
@@ -150,10 +192,10 @@ public abstract class MixinWorldgenGTOreLayer {
     }
 
     /**
-     * Cleans up the ThreadLocal state after each {@code executeWorldgenChunkified} call, including
-     * all early-exit paths (wrong dimension, wrong biome, no overlap, etc.).
+     * Cleans up the ThreadLocal state after each {@code generateWithPlacement} call, including the
+     * {@code !generator.placed} early exit.
      */
-    @Inject(method = "executeWorldgenChunkified", at = @At("RETURN"))
+    @Inject(method = "generateWithPlacement", at = @At("RETURN"))
     private void fortuneone$cleanVeinState(CallbackInfoReturnable<Integer> cir) {
         VeinGenState.CURRENT.remove();
     }
