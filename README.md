@@ -70,13 +70,13 @@ Output jars are written to `build/libs/`.
 
 ## Dependencies
 
-Runtime dependency declared in `dependencies.gradle`:
+GT5U dependency declared in `dependencies.gradle` (pinned to the version shipped in GTNH 2.9.0 RC 2):
 
 ```groovy
-compileOnly(rfg.deobf("com.github.GTNewHorizons:GT5-Unofficial:5.09.52.551:dev"))
+devOnlyNonPublishable(rfg.deobf("com.github.GTNewHorizons:GT5-Unofficial:5.09.54.205:dev"))
 ```
 
-GT5U is `compileOnly` — it must be present in the player's `mods/` folder at runtime but is not bundled into the jar.
+GT5U is compile-time and dev-run only — it must be present in the player's `mods/` folder at runtime but is not bundled into the jar or published as a dependency.
 
 ## CI / Releasing
 

@@ -27,12 +27,20 @@
 .EXAMPLE
     .\scripts\verify-local.ps1
 
+.PARAMETER RunTask
+    Gradle server task to run. Default: runServer (Java 8). Use runServer17/runServer21/runServer25 to
+    test on modern Java, which loads GT5U's separate Java 17 class files like the real modpack does.
+
 .EXAMPLE
     .\scripts\verify-local.ps1 -SkipBuild -ServerTimeoutSeconds 300
+
+.EXAMPLE
+    .\scripts\verify-local.ps1 -SkipBuild -RunTask runServer25
 #>
 param(
     [switch]$SkipBuild,
-    [int]$ServerTimeoutSeconds = 180
+    [int]$ServerTimeoutSeconds = 180,
+    [string]$RunTask = "runServer"
 )
 
 Set-StrictMode -Version Latest
@@ -52,7 +60,11 @@ $overallPass = $true
 # ---------------------------------------------------------------------------
 if (-not $SkipBuild) {
     Write-Step "Building mod jar"
-    & ".\gradlew.bat" "build" "--console=plain"
+    # Gradle writes warnings to stderr; under "Stop", Windows PowerShell 5.1 would treat those as fatal.
+    # Judge the build by its exit code instead.
+    $ErrorActionPreference = "Continue"
+    & ".\gradlew.bat" "build" "--console=plain" 2>&1 | ForEach-Object { "$_" }
+    $ErrorActionPreference = "Stop"
     if ($LASTEXITCODE -ne 0) {
         Write-Fail "Gradle build failed (exit $LASTEXITCODE). Fix build errors before running tests."
         exit 1
@@ -108,7 +120,7 @@ $null = New-Item -ItemType Directory -Force -Path (Join-Path $RepoRoot "run")
 # FMLServerStartedEvent fires and our tests run.
 $tmpBat = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), ".bat")
 [System.IO.File]::WriteAllText($tmpBat,
-    "@echo off`r`necho stop | .\gradlew.bat runServer --no-daemon --console=plain > `"$serverLog`" 2>&1`r`n",
+    "@echo off`r`necho stop | .\gradlew.bat $RunTask --no-daemon --console=plain > `"$serverLog`" 2>&1`r`n",
     [System.Text.Encoding]::ASCII)
 
 Write-Host "Starting server (--no-daemon, output -> $(Split-Path $serverLog -Leaf))..." -ForegroundColor Yellow
